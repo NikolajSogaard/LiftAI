@@ -1,7 +1,7 @@
 # Master-Thesis: AI Strength Program Generator
 
 ## Overview
-This repository hosts an advanced system for generating personalized strength training programs. By leveraging Large Language Models (LLMs) and Retrieval Augmented Generation (RAG), the system synthesizes expert knowledge to create optimized workout routines tailored to specific user needs.
+This repository hosts an advanced system for generating personalized strength training programs. By leveraging Large Language Models (LLMs), AI-agents and Retrieval Augmented Generation (RAG), the system synthesizes expert knowledge to create optimized workout routines tailored to specific user needs.
 
 ## System Configuration
 
