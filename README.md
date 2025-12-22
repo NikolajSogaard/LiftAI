@@ -1,37 +1,38 @@
 # Master-Thesis: AI Strength Program Generator
 
-This project uses AI agents, including Large Language Models (LLMs) and Retrieval Augmented Generation (RAG), to create personalized strength training programs.
+## Overview
+This repository hosts an advanced system for generating personalized strength training programs. By leveraging Large Language Models (LLMs) and Retrieval Augmented Generation (RAG), the system synthesizes expert knowledge to create optimized workout routines tailored to specific user needs.
 
-## Setup
-### 1. API Key Configuration
-This project uses Google Gemini for its AI capabilities.
-**Configure the Key:**
-    1.  Create a file named `cre.env` in the main project directory and add your own API key.
-    2.  Inside `cre.env`, add your API key like this:
-    *   The file `agent_system/setup_api.py` is responsible for loading this key to allow the AI models to work.
+## System Configuration
 
-### 2. Build Your Own Knowledge Database (for RAG)
-The system uses Retrieval Augmented Generation (RAG) to provide the AI with relevant information from strength training literature. This information is stored in a local vector database.
+### 1. API Credentials
+To enable the generative capabilities of the system, a Google Gemini API key is required.
+*   Create a file named `cre.env` in the root directory.
+*   Insert your API key into this file.
+*   The `agent_system/setup_api.py` module will automatically load this key to authenticate AI model requests.
 
-**Add PDF Documents:**
-Place your strength training PDF books or documents into the `Data/books/` folder.
-**Build the Database:**
-Run script (`build_db.py`) to read the PDFs from `Data/books/`.
-The embeddings will be stored in a local vector database (ChromaDB) located at `data/chroma_db/`.
+### 2. Knowledge Base Initialization (RAG)
+The system utilizes a local vector database to retrieve context-aware information from strength training literature.
 
-## How the System Works 
-The project uses a Flask web app (`app.py`) and a team of AI agents to create strength programs.
+*   **Data Ingestion:** Deposit relevant PDF documents into the `Data/books/` directory.
+*   **Database Construction:** Execute the `build_db.py` script. This process parses the PDF content and generates embeddings within the `data/chroma_db/` directory, enabling the AI to reference authoritative sources.
 
-*   **`app.py` (Web App):** Handles user interaction, manages program generation requests, and displays results.
-    *   For testing purposes, the system can utilize predefined user personas. These personas are defined in `Data/personas/personas_vers2.json` and can be selected in the web interface to simulate different user types.
-*   **`agent_system/setup_api.py`:** Connects to Google Gemini AI models using your API key from `cre.env`.
-*   **`build_db.py` & `rag_retrieval.py` (Knowledge Base - RAG):**
-    *   `build_db.py`: Processes PDFs in `Data/books/` into a searchable ChromaDB vector database (`data/chroma_db/`).
-    *   `rag_retrieval.py`: Allows AI agents to search this database for relevant strength training information to improve their responses.
-*   **`agent_system/generator.py` (`ProgramGenerator`):** Manages the AI agent team (Writer, Critic, Editor) using LangGraph to define their workflow.
-*   **`agent_system/agents/` (AI Agent Team):**
-    *   **`writer.py` (Writer):** Generates the initial program draft and revises it based on feedback or for weekly progression. Uses RAG for knowledge.
-    *   **`critic.py` (Critic):** Evaluates the Writer's draft against several criteria (frequency, exercise selection, volume, RPE, progression). Uses RAG for informed critiques.
-    *   **`editor.py` (Editor):** Clean JSON structure for the web app.
-*   **`prompts/` (Agent Instructions):** Contains detailed Python files (`writer_prompts.py`, `critic_prompts.py`) that define the roles, tasks, and desired output formats for the AI agents.
+## Architectural Components
+
+The system operates through a Flask-based web interface and a coordinated team of AI agents.
+
+### Core Application
+*   **`app.py` (Web Interface):** This module serves as the user entry point, handling input parameters and rendering the generated programs. It supports testing via predefined personas located in `Data/personas/personas_vers2.json`.
+
+### AI Agent Workflow
+The generation process is managed by `agent_system/generator.py`, which orchestrates a LangGraph workflow involving the following specialized agents:
+
+*   **Writer Agent (`agent_system/agents/writer.py`):** Responsible for drafting the initial training program and implementing revisions. It queries the RAG system to ensure scientific accuracy.
+*   **Critic Agent (`agent_system/agents/critic.py`):** Rigorously evaluates the draft against key metrics such as volume, frequency, and RPE (Rate of Perceived Exertion). It provides constructive feedback to the Writer.
+*   **Editor Agent (`agent_system/agents/editor.py`):** Ensures the final output adheres to a strict JSON schema for seamless integration with the web frontend.
+
+### Supporting Infrastructure
+*   **`agent_system/setup_api.py`:** Manages the connection to the Google Gemini API.
+*   **`rag_retrieval.py`:** The retrieval engine that allows agents to query the ChromaDB vector store for specific training principles.
+*   **`prompts/`:** A collection of system instructions defining the operational parameters and personas for each AI agent.
 
