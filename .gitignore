@@ -1,5 +1,7 @@
 # Custom ignores
-Data/
+Data/*
+!Data/generate_screenshot.png
+!Data/index_screenshot.png
 cre.env
 agent_system/setup_api.py
 .conda
