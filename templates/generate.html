@@ -2,170 +2,672 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Generate Training Program</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiftAI - Generate Program</title>
   <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232636;
+      --border: #2e3244;
+      --text: #e2e4ea;
+      --muted: #8b8fa3;
+      --accent: #6c63ff;
+      --accent-dim: #4a4494;
+      --green: #34d399;
+      --red: #f87171;
+      --orange: #fbbf24;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    .form-group {
-      margin-bottom: 20px;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-    }
-    textarea, select {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    button:hover {
-      background-color: #45a049;
-    }
-    
-    .section-divider {
+
+    .header {
       display: flex;
       align-items: center;
-      margin: 30px 0;
+      justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
-    
-    .divider-line {
-      flex-grow: 1;
-      height: 1px;
-      background-color: #ddd;
+
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #ffffff;
     }
-    
-    .divider-text {
-      margin: 0 15px;
-      font-weight: bold;
-      color: #777;
+
+    .header-nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
     }
-    
-    .saved-programs {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 15px;
-      margin-bottom: 20px;
-      background-color: #f9f9f9;
+    .header-nav a:hover { color: var(--text); }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 40px 24px 24px;
     }
-    
-    .program-list {
+
+    .welcome { text-align: center; margin-bottom: 40px; }
+
+    .welcome h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .welcome p { color: var(--muted); font-size: 0.95rem; }
+
+    /* Chat area */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+      min-height: 200px;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 14px 18px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .bubble-user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bubble-ai {
+      align-self: flex-start;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .bubble-ai .step-label {
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .bubble-ai .step-label.error  { color: var(--red); }
+
+    /* Thinking container */
+    .thinking-container {
+      align-self: flex-start;
+      max-width: 85%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .thinking-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--accent);
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+
+    .thinking-header:hover { color: var(--text); }
+
+    .thinking-header .chevron {
+      font-size: 0.7rem;
+      transition: transform 0.2s;
+      color: var(--muted);
+    }
+
+    .thinking-done .thinking-header .chevron {
+      transform: rotate(-90deg);
+    }
+
+    .thinking-done.expanded .thinking-header .chevron {
+      transform: rotate(0deg);
+    }
+
+    .thinking-dots {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .thinking-dots span {
+      width: 6px; height: 6px;
+      background: var(--muted);
+      border-radius: 50%;
+      animation: blink 1.4s infinite both;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    .thinking-lines {
+      padding: 0 18px 14px;
+      max-height: 500px;
+      overflow-y: auto;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+
+    .thinking-lines::-webkit-scrollbar { width: 5px; }
+    .thinking-lines::-webkit-scrollbar-track { background: transparent; }
+    .thinking-lines::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .thinking-done .thinking-lines {
+      max-height: 0;
+      padding: 0 18px;
+      overflow: hidden;
+    }
+
+    .thinking-done.expanded .thinking-lines {
+      max-height: 500px;
+      padding: 0 18px 14px;
+    }
+
+    .thinking-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      animation: fadeIn 0.25s ease;
+    }
+
+    .thinking-line .step-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .step-dot.writer { background: var(--accent); }
+    .step-dot.critic { background: var(--orange); }
+    .step-dot.editor { background: var(--green); }
+
+    .thinking-line .check {
+      color: var(--green);
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      width: 8px;
+      text-align: center;
+    }
+
+    .thinking-line.detail {
+      padding-left: 22px;
+      font-size: 0.75rem;
+      color: #6b7089;
+      font-style: italic;
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .thinking-line.detail .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .thinking-line.detail .detail-header:hover {
+      color: var(--muted);
+    }
+
+    .thinking-line.detail .detail-toggle {
+      font-size: 0.6rem;
+      transition: transform 0.2s;
+      color: #555;
+    }
+
+    .thinking-line.detail .detail-toggle.open {
+      transform: rotate(90deg);
+    }
+
+    .thinking-line.detail .detail-body {
+      display: none;
+      margin-left: 16px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.02);
+      border-left: 2px solid var(--border);
+      border-radius: 0 6px 6px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
       max-height: 200px;
       overflow-y: auto;
-      margin-bottom: 15px;
-      border: 1px solid #eee;
-      border-radius: 4px;
-      background-color: #fff;
+      font-style: normal;
+      color: #7a7f99;
     }
-    
-    .program-item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
+
+    .thinking-line.detail .detail-body.open {
+      display: block;
+    }
+
+    .thinking-line.detail .detail-body::-webkit-scrollbar { width: 4px; }
+    .thinking-line.detail .detail-body::-webkit-scrollbar-track { background: transparent; }
+    .thinking-line.detail .detail-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .thinking-line.detail .step-dot {
+      width: 5px;
+      height: 5px;
+      opacity: 0.5;
+    }
+
+    /* Input area */
+    .input-area {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .input-area textarea {
+      width: 100%;
+      min-height: 100px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .input-area textarea::placeholder { color: var(--muted); }
+
+    .input-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .persona-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
       cursor: pointer;
-      transition: background-color 0.2s;
     }
-    
-    .program-item:hover {
-      background-color: #f0f0f0;
+
+    .btn-generate {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
     }
-    
-    .program-item.selected {
-      background-color: #e7f3ff;
+    .btn-generate:hover { background: #5a52e0; }
+    .btn-generate:active { transform: scale(0.97); }
+    .btn-generate:disabled {
+      background: var(--accent-dim);
+      cursor: not-allowed;
+      opacity: 0.6;
     }
-    
-    .program-details {
-      font-size: 12px;
-      color: #777;
-      margin-top: 4px;
+
+    /* Divider & saved section */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 32px 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
-    
-    .load-button {
-      background-color: #3498db;
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
     }
-    
-    .load-button:hover {
-      background-color: #2980b9;
+
+    .saved-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
     }
-    
+
+    .saved-section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+
+    .program-list {
+      max-height: 240px;
+      overflow-y: auto;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .program-list::-webkit-scrollbar { width: 6px; }
+    .program-list::-webkit-scrollbar-track { background: transparent; }
+    .program-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .program-item {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 6px;
+    }
+    .program-item:hover { background: var(--surface2); }
+    .program-item.selected { background: var(--accent-dim); border-color: var(--accent); }
+    .program-item strong { font-size: 0.9rem; }
+
+    .program-details { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    .btn-load {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-load:hover { background: var(--accent-dim); }
+    .btn-load:disabled { opacity: 0.4; cursor: not-allowed; }
+
     #load-message {
       margin-top: 10px;
-      padding: 8px;
-      border-radius: 4px;
-      text-align: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
       display: none;
     }
-    
-    .success-message {
-      background-color: #d4edda;
-      color: #155724;
-    }
-    
-    .error-message {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
+
+    .success-message { background: rgba(52,211,153,0.15); color: var(--green); }
+    .error-message { background: rgba(248,113,113,0.15); color: var(--red); }
+    .empty-state { text-align: center; color: var(--muted); padding: 24px; font-size: 0.85rem; }
   </style>
 </head>
 <body>
-  <h1>Generate Your Weekly Training Program</h1>
-  
-  <form action="{{ url_for('generate_program') }}" method="post">
-    <div class="form-group">
-      <label for="user_input">Training Requirements:</label>
-      <textarea id="user_input" name="user_input" rows="10" placeholder="Describe your training preferences, goals, equipment available, number of days per week, etc."></textarea>
-    </div>
-    
-    <div class="form-group">
-      <label for="persona">Select Persona (Optional):</label>
-      <select id="persona" name="persona">
-        <option value="1">Persona 1</option>
-        <option value="2">Persona 2</option>
-        <option value="3">Persona 3</option>
-      </select>
-    </div>
-    
-    <button type="submit">Generate Program</button>
-  </form>
-  
 
-  <div class="section-divider">
-    <div class="divider-line"></div>
-    <div class="divider-text">OR</div>
-    <div class="divider-line"></div>
+  <div class="header">
+    <div class="logo">LiftAI</div>
+    <div class="header-nav">
+      <a href="{{ url_for('index') }}">View Program</a>
+    </div>
   </div>
-  
 
-  <div class="saved-programs">
-    <h2>Load Saved Program</h2>
-    <div id="program-list" class="program-list">
-      <div class="program-item" style="text-align: center; color: #777;">
-        Loading saved programs...
+  <div class="main">
+    <div class="welcome" id="welcome">
+      <h1>Build Your Program</h1>
+      <p>Describe your goals and LiftAI will generate a personalized strength training program.</p>
+    </div>
+
+    <div class="chat-area" id="chat-area"></div>
+
+    <div class="input-area" id="input-area">
+      <textarea id="user-input" placeholder="e.g. I am an intermediate lifter looking for a 4-day upper/lower hypertrophy program. I can train Mon/Tue/Thu/Fri..."></textarea>
+      <div class="input-controls">
+        <select class="persona-select" id="persona-select">
+          <option value="">No persona</option>
+          <option value="1">Persona 1</option>
+          <option value="2">Persona 2</option>
+          <option value="3">Persona 3</option>
+        </select>
+        <button class="btn-generate" id="btn-generate">Generate Program</button>
       </div>
     </div>
-    <button type="button" id="load-program-btn" class="load-button" disabled>Load Selected Program</button>
-    <div id="load-message"></div>
+
+    <div class="divider">or load a saved program</div>
+
+    <div class="saved-section">
+      <h2>Saved Programs</h2>
+      <div id="program-list" class="program-list">
+        <div class="empty-state">Loading...</div>
+      </div>
+      <button class="btn-load" id="load-program-btn" disabled>Load Selected</button>
+      <div id="load-message"></div>
+    </div>
   </div>
-  
+
   <script>
+    var chatArea = document.getElementById('chat-area');
+    var userInput = document.getElementById('user-input');
+    var btnGenerate = document.getElementById('btn-generate');
+    var personaSelect = document.getElementById('persona-select');
+    var welcome = document.getElementById('welcome');
+
+    var thinkingContainer = null;
+    var thinkingLines = null;
+
+    function addBubble(type, stepLabel, message) {
+      var bubble = document.createElement('div');
+      bubble.className = 'chat-bubble bubble-' + type;
+      if (type === 'ai' && stepLabel) {
+        var label = document.createElement('div');
+        label.className = 'step-label ' + stepLabel;
+        label.textContent = stepLabel;
+        bubble.appendChild(label);
+      }
+      var text = document.createElement('div');
+      text.textContent = message;
+      bubble.appendChild(text);
+      chatArea.appendChild(bubble);
+      chatArea.scrollTop = chatArea.scrollHeight;
+      return bubble;
+    }
+
+    function startThinking() {
+      thinkingContainer = document.createElement('div');
+      thinkingContainer.className = 'thinking-container';
+      thinkingContainer.id = 'thinking-container';
+
+      var header = document.createElement('div');
+      header.className = 'thinking-header';
+      header.innerHTML = '<span class="chevron">&#9660;</span> Thinking';
+      var dots = document.createElement('div');
+      dots.className = 'thinking-dots';
+      dots.id = 'thinking-dots';
+      dots.innerHTML = '<span></span><span></span><span></span>';
+      header.appendChild(dots);
+      thinkingContainer.appendChild(header);
+
+      thinkingLines = document.createElement('div');
+      thinkingLines.className = 'thinking-lines';
+      thinkingContainer.appendChild(thinkingLines);
+
+      chatArea.appendChild(thinkingContainer);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function addThinkingLine(step, message, isDetail) {
+      if (!thinkingLines) return;
+      var line = document.createElement('div');
+      line.className = 'thinking-line' + (isDetail ? ' detail' : '');
+
+      if (isDetail && message.indexOf('\n') !== -1) {
+        var parts = message.split('\n');
+        var title = parts[0];
+        var body = parts.slice(1).join('\n').trim();
+
+        var header = document.createElement('div');
+        header.className = 'detail-header';
+        header.innerHTML = '<span class="step-dot ' + step + '"></span>' +
+          '<span class="detail-toggle">&#9654;</span> ' + escapeHtml(title);
+
+        var bodyEl = document.createElement('div');
+        bodyEl.className = 'detail-body';
+        bodyEl.textContent = body;
+
+        header.addEventListener('click', function() {
+          var tog = header.querySelector('.detail-toggle');
+          tog.classList.toggle('open');
+          bodyEl.classList.toggle('open');
+          chatArea.scrollTop = chatArea.scrollHeight;
+        });
+
+        line.appendChild(header);
+        line.appendChild(bodyEl);
+      } else {
+        line.innerHTML = '<span class="step-dot ' + step + '"></span>' + escapeHtml(message);
+      }
+
+      thinkingLines.appendChild(line);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function finishThinking(elapsed) {
+      if (!thinkingContainer) return;
+      var dots = document.getElementById('thinking-dots');
+      if (dots) dots.remove();
+
+      var header = thinkingContainer.querySelector('.thinking-header');
+      var label = 'Thought for ' + formatTime(elapsed);
+      header.innerHTML = '<span class="chevron">&#9660;</span> ' + label;
+
+      thinkingContainer.classList.add('thinking-done');
+      header.addEventListener('click', function() {
+        thinkingContainer.classList.toggle('expanded');
+      });
+    }
+
+    function formatTime(ms) {
+      var secs = Math.round(ms / 1000);
+      if (secs < 60) return secs + ' seconds';
+      var mins = Math.floor(secs / 60);
+      var rem = secs % 60;
+      return mins + 'm ' + rem + 's';
+    }
+
+    function escapeHtml(text) {
+      var d = document.createElement('div');
+      d.appendChild(document.createTextNode(text));
+      return d.innerHTML;
+    }
+
+    btnGenerate.addEventListener('click', function() {
+      var text = userInput.value.trim();
+      var persona = personaSelect.value;
+      if (!text && !persona) { userInput.focus(); return; }
+
+      welcome.style.display = 'none';
+      addBubble('user', '', text || '(using persona ' + persona + ')');
+
+      btnGenerate.disabled = true;
+      userInput.disabled = true;
+      personaSelect.disabled = true;
+
+      var formData = new FormData();
+      formData.append('user_input', text);
+      formData.append('persona', persona);
+
+      var startTime = Date.now();
+
+      fetch('{{ url_for("generate_program") }}', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.job_id) {
+            addBubble('ai', 'error', 'Failed to start generation.');
+            btnGenerate.disabled = false;
+            userInput.disabled = false;
+            personaSelect.disabled = false;
+            return;
+          }
+
+          startThinking();
+          var evtSource = new EventSource('/generate/stream/' + data.job_id);
+
+          evtSource.onmessage = function(event) {
+            var msg = JSON.parse(event.data);
+
+            if (msg.step === 'done') {
+              var elapsed = Date.now() - startTime;
+              finishThinking(elapsed);
+              addBubble('ai', '', msg.message);
+              evtSource.close();
+              // Navigate directly — this sets session in a normal request cycle
+              window.location.href = '/generate/complete/' + msg.job_id;
+              return;
+            }
+            if (msg.step === 'error' || msg.step === 'timeout') {
+              finishThinking(Date.now() - startTime);
+              addBubble('ai', 'error', msg.message);
+              evtSource.close();
+              btnGenerate.disabled = false;
+              userInput.disabled = false;
+              personaSelect.disabled = false;
+              return;
+            }
+
+            addThinkingLine(msg.step, msg.message, msg.detail || false);
+          };
+
+          evtSource.onerror = function() {
+            finishThinking(Date.now() - startTime);
+            evtSource.close();
+          };
+        })
+        .catch(function(err) {
+          addBubble('ai', 'error', 'Network error: ' + err.message);
+          btnGenerate.disabled = false;
+          userInput.disabled = false;
+          personaSelect.disabled = false;
+        });
+    });
+
+    userInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        btnGenerate.click();
+      }
+    });
+
     document.addEventListener('DOMContentLoaded', function() {
       fetchSavedPrograms();
       document.getElementById('load-program-btn').addEventListener('click', loadSelectedProgram);
@@ -173,97 +675,58 @@
 
     function fetchSavedPrograms() {
       fetch('{{ url_for("list_saved_programs") }}')
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            displaySavedPrograms(data.programs);
-          } else {
-            showLoadMessage(data.message, false);
-          }
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success) displaySavedPrograms(data.programs);
+          else showLoadMessage(data.message, false);
         })
-        .catch(error => {
-          console.error('Error:', error);
-          showLoadMessage('Error fetching saved programs', false);
-        });
+        .catch(function() { showLoadMessage('Error fetching saved programs', false); });
     }
-    
-    // Display saved programs in the list
+
     function displaySavedPrograms(programs) {
-      const listElement = document.getElementById('program-list');
-      
-      if (programs.length === 0) {
-        listElement.innerHTML = '<div class="program-item" style="text-align: center; color: #777;">No saved programs found</div>';
+      var list = document.getElementById('program-list');
+      if (!programs.length) {
+        list.innerHTML = '<div class="empty-state">No saved programs yet</div>';
         return;
       }
-      
-      let html = '';
-      programs.forEach(program => {
-        html += `
-          <div class="program-item" data-filename="${program.filename}">
-            <div><strong>${program.name}</strong></div>
-            <div class="program-details">
-              Saved: ${program.date} | Weeks: ${program.weeks} | Current: Week ${program.current_week}
-            </div>
-          </div>
-        `;
-      });
-      
-      listElement.innerHTML = html;
-      document.querySelectorAll('.program-item').forEach(item => {
+      list.innerHTML = programs.map(function(p) {
+        return '<div class="program-item" data-filename="' + p.filename + '">' +
+               '<strong>' + p.name + '</strong>' +
+               '<div class="program-details">Saved: ' + p.date + ' &middot; Weeks: ' + p.weeks + ' &middot; Current: Week ' + p.current_week + '</div>' +
+               '</div>';
+      }).join('');
+
+      list.querySelectorAll('.program-item').forEach(function(item) {
         item.addEventListener('click', function() {
-          document.querySelectorAll('.program-item').forEach(i => {
-            i.classList.remove('selected');
-          });
+          list.querySelectorAll('.program-item').forEach(function(i) { i.classList.remove('selected'); });
           this.classList.add('selected');
           document.getElementById('load-program-btn').disabled = false;
         });
       });
     }
-    
-    // Load the selected program
+
     function loadSelectedProgram() {
-      const selectedItem = document.querySelector('.program-item.selected');
-      if (!selectedItem) {
-        showLoadMessage('Please select a program to load', false);
-        return;
-      }
-      
-      const filename = selectedItem.getAttribute('data-filename');
-      const formData = new FormData();
-      formData.append('filename', filename);
-      
-      fetch('{{ url_for("load_program") }}', {
-        method: 'POST',
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showLoadMessage('Program loaded successfully, redirecting...', true);
-          setTimeout(() => {
-            window.location.href = data.redirect;
-          }, 1000);
-        } else {
-          showLoadMessage(data.message, false);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showLoadMessage('Error loading program', false);
-      });
+      var selected = document.querySelector('.program-item.selected');
+      if (!selected) { showLoadMessage('Select a program first', false); return; }
+      var formData = new FormData();
+      formData.append('filename', selected.dataset.filename);
+      fetch('{{ url_for("load_program") }}', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success) {
+            showLoadMessage('Loaded! Redirecting...', true);
+            setTimeout(function() { window.location.href = data.redirect; }, 800);
+          } else showLoadMessage(data.message, false);
+        })
+        .catch(function() { showLoadMessage('Error loading program', false); });
     }
-    
-    // Show load message
-    function showLoadMessage(message, isSuccess) {
-      const messageElement = document.getElementById('load-message');
-      messageElement.textContent = message;
-      messageElement.className = isSuccess ? 'success-message' : 'error-message';
-      messageElement.style.display = 'block';
-      if (!isSuccess) {
-        setTimeout(() => {
-          messageElement.style.display = 'none';
-        }, 5000);
-      }
+
+    function showLoadMessage(msg, ok) {
+      var el = document.getElementById('load-message');
+      el.textContent = msg;
+      el.className = ok ? 'success-message' : 'error-message';
+      el.style.display = 'block';
+      if (!ok) setTimeout(function() { el.style.display = 'none'; }, 4000);
     }
   </script>
 </body>

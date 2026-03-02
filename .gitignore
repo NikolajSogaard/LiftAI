@@ -2,6 +2,7 @@
 Data/
 cre.env
 agent_system/setup_api.py
+.conda
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,7 +1,15 @@
-# Master-Thesis: AI Strength Program Generator
+# LiftAI: Agent-Based Strength Training Program Generator
 
 ## Overview
-This repository hosts an advanced system for generating personalized strength training programs. By leveraging Large Language Models (LLMs), AI-agents and Retrieval Augmented Generation (RAG), the system synthesizes expert knowledge to create optimized workout routines tailored to specific user needs.
+LiftAI is an agent-based AI system that uses Retrieval-Augmented Generation (RAG) to produce personalized strength training programs. Built on a LangGraph framework, it employs a multi-agent architecture backed by a domain-specific vector database of training literature. The system dynamically adjusts training variables — volume, intensity, exercise selection, and progression — based on user input and performance data, aiming to provide accessible, individualized strength training guidance.
+
+## Screenshots
+
+### Program Generation
+![Generate Page](Data/generate_screenshot.png)
+
+### Program View
+![Index Page](Data/index_screenshot.png)
 
 ## System Configuration
 
@@ -12,10 +20,10 @@ To enable the generative capabilities of the system, a Google Gemini API key is 
 *   The `agent_system/setup_api.py` module will automatically load this key to authenticate AI model requests.
 
 ### 2. Knowledge Base Initialization (RAG)
-The system utilizes a local vector database to retrieve context-aware information from strength training literature.
+The system utilizes a local FAISS vector database to retrieve context-aware information from strength training literature.
 
 *   **Data Ingestion:** Deposit relevant PDF documents into the `Data/books/` directory.
-*   **Database Construction:** Execute the `build_db.py` script. This process parses the PDF content and generates embeddings within the `data/chroma_db/` directory, enabling the AI to reference authoritative sources.
+*   **Database Construction:** Execute the `build_db.py` script. This process parses the PDF content and generates embeddings within `Data/faiss_db/`, enabling the AI to reference authoritative sources.
 
 ## Architectural Components
 
@@ -33,6 +41,6 @@ The generation process is managed by `agent_system/generator.py`, which orchestr
 
 ### Supporting Infrastructure
 *   **`agent_system/setup_api.py`:** Manages the connection to the Google Gemini API.
-*   **`rag_retrieval.py`:** The retrieval engine that allows agents to query the ChromaDB vector store for specific training principles.
+*   **`rag_retrieval.py`:** The retrieval engine that allows agents to query the FAISS vector store for specific training principles.
 *   **`prompts/`:** A collection of system instructions defining the operational parameters and personas for each AI agent.
 

@@ -1,55 +1,67 @@
 import os
+import pickle
+import faiss
 import numpy as np
-from langchain_chroma import Chroma
-from agent_system.setup_api import setup_embeddings, setup_llm
+
+FAISS_DIR = os.path.join("Data", "faiss_db")
+
+_embedding_model = None
+_generate_response = None
+_faiss_index = None
+_doc_texts = None
+_doc_metadatas = None
 
 
-embedding_model = setup_embeddings(model="models/text-embedding-004")
-generate_response = setup_llm(model="models/gemini-2.0-flash", max_tokens=1000, temperature=0.3)
+def _get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        from agent_system.setup_api import setup_embeddings
+        _embedding_model = setup_embeddings(model="gemini-embedding-001")
+    return _embedding_model
 
-vector_store = Chroma(
-    persist_directory="data/chroma_db",
-    embedding_function=embedding_model,
-    collection_name="strength_training_books"
-)
 
-def simple_summary(text):
-    return text[:200] + "..." if len(text) > 200 else text
+def _get_generate_response():
+    global _generate_response
+    if _generate_response is None:
+        from agent_system.setup_api import setup_llm
+        _generate_response = setup_llm(model="gemini-2.5-flash", max_tokens=1000, temperature=0.3)
+    return _generate_response
 
-def rerank_results(results):
-    return sorted(results, key=lambda x: len(x.page_content), reverse=True)
 
-# Retrieval Function: Get Context from ChromaDB
+def _get_index(directory=FAISS_DIR):
+    """Lazy-load the FAISS index and doc metadata on first use."""
+    global _faiss_index, _doc_texts, _doc_metadatas
+    if _faiss_index is None:
+        _faiss_index = faiss.read_index(os.path.join(directory, "index.faiss"))
+        with open(os.path.join(directory, "docs.pkl"), "rb") as f:
+            store = pickle.load(f)
+        _doc_texts = store["texts"]
+        _doc_metadatas = store["metadatas"]
+    return _faiss_index, _doc_texts, _doc_metadatas
+
+
 def retrieve_context(query, k=8):
-    """
-    Retrieves the top k relevant chunks from the vector store for the query.
-    Returns the prompt context, a simple summary, and the source metadata.
-    """
-    results = vector_store.similarity_search(query, k=k)
-    results = rerank_results(results)
-    context = "\n\n".join([res.page_content for res in results])
-    
-    # Generate a simple summary from the context
-    summary = simple_summary(context)
-    
-    # Extract metadata from results for display
-    sources = []
-    for res in results:
-        sources.append({
-            'content': res.page_content[:100] + "...",  # Show first 100 chars
-            'metadata': res.metadata
-        })
-    
+    """Retrieve top-k relevant chunks from FAISS. Returns (context, summary, sources)."""
+    index, texts, metadatas = _get_index()
+    vec = np.array(_get_embedding_model().embed_query(query), dtype="float32").reshape(1, -1)
+    faiss.normalize_L2(vec)
+    scores, indices = index.search(vec, k)
+
+    # rerank by chunk length (longer = more informative)
+    hits = sorted(
+        [(texts[i], metadatas[i], scores[0][rank]) for rank, i in enumerate(indices[0]) if i != -1],
+        key=lambda x: len(x[0]),
+        reverse=True,
+    )
+
+    context = "\n\n".join(t for t, _, _ in hits)
+    summary = context[:200] + "..." if len(context) > 200 else context
+    sources = [{"content": t[:100] + "...", "metadata": m} for t, m, _ in hits]
     return context, summary, sources
 
 
 def retrieve_and_generate(query, specialized_instructions=""):
-    """
-    Combines retrieval and generation:
-      1. Retrieves context from the vector store.
-      2. Builds a prompt that includes any specialized instructions and a summary.
-      3. Generates and returns an answer using Gemini Flash 2.0.
-    """
+    """Retrieve relevant context and generate a response using Gemini."""
     context, summary, sources = retrieve_context(query)
     prompt = f"""You are a specialized strength training expert.
 {specialized_instructions}
@@ -67,4 +79,4 @@ Context:
 Query: {query}
 
 Answer:"""
-    return generate_response(prompt), sources
+    return _get_generate_response()(prompt), sources

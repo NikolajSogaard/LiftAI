@@ -1,4 +1,6 @@
-from langgraph.graph import Graph
+from __future__ import annotations
+from typing import Any
+from langgraph.graph import StateGraph, START, END
 
 from .agents import (
     Writer,
@@ -6,76 +8,59 @@ from .agents import (
     Editor,
 )
 
+
 class ProgramGenerator:
     def __init__(
             self,
             writer: Writer,
             critic: Critic,
             editor: Editor,
-            max_iterations: int = 3, #default maximum iterations for critique and revision
+            max_iterations: int = 3,
             ):
-        # Agents
         self.writer = writer
         self.critic = critic
-        
-        # Pass writer to editor to enable implementing final feedback
+
         if not hasattr(editor, 'writer') or editor.writer is None:
             editor.writer = writer
-            
         self.editor = editor
         self.max_iterations = max_iterations
+        self.on_status = None
 
-        # Build graph
-        graph = Graph()
-
-        # Agent nodes
+        graph = StateGraph(dict)
         graph.add_node('writer', self.writer)
         graph.add_node('critic', self.critic)
         graph.add_node('editor', self.editor)
 
-        # Arcs
-        graph.add_edge(
-            start_key='writer',
-            end_key='critic',
-        )
+        graph.add_edge(START, 'writer')
+        graph.add_edge('writer', 'critic')
         graph.add_conditional_edges(
             source='critic',
             path=self.provide_critique,
-            path_map={
-                'accept': 'editor',
-                'revise': 'writer',
-            },
+            path_map={'accept': 'editor', 'revise': 'writer'},
         )
-
-        # Set start and end node
-        graph.set_entry_point('writer')
-        graph.set_finish_point('editor')
+        graph.add_edge('editor', END)
         self.app = graph.compile()
 
-    def provide_critique(self, program: dict[str, str | None]) -> str:
-        if 'iteration_count' not in program:
-            program['iteration_count'] = 0
+    def provide_critique(self, program: dict[str, Any]) -> str:
+        program.setdefault('iteration_count', 0)
         program['iteration_count'] += 1
         if program['iteration_count'] >= self.max_iterations:
-            print(f"Reached maximum iterations ({self.max_iterations}), accepting program as is.")
+            print(f"Max iterations reached ({self.max_iterations}), accepting.")
             return 'accept'
-        if program['feedback'] is None:
-            return 'accept'
-        return 'revise'
+        return 'accept' if program['feedback'] is None else 'revise'
 
-    def create_program(
-            self,
-            user_input: str,
-            ) -> dict[str, str | None]:
-        # Prepare inputs
+    def create_program(self, user_input: str) -> dict[str, Any]:
+        # Propagate status callback to agents
+        if self.on_status:
+            self.writer.on_status = self.on_status
+            self.critic.on_status = self.on_status
+            self.editor.on_status = self.on_status
+
         program = {
             'user-input': user_input,
-            'draft': None,  
+            'draft': None,
             'feedback': None,
             'formatted': None,
             'iteration_count': 0,
         }
-
-        final_state = self.app.invoke(program)
-
-        return final_state
+        return self.app.invoke(program)
