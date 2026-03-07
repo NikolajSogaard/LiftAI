@@ -1,7 +1,7 @@
 # LiftAI: Agent-Based Strength Training Program Generator
 
 ## Overview
-LiftAI is an agent-based AI system that uses Retrieval-Augmented Generation (RAG) to produce personalized strength training programs. Built on a LangGraph framework, it employs a multi-agent architecture backed by a domain-specific vector database of training literature. The system dynamically adjusts training variables — volume, intensity, exercise selection, and progression — based on user input and performance data, aiming to provide accessible, individualized strength training guidance.
+LiftAI is an agent-based AI system that uses Retrieval-Augmented Generation (RAG) to produce personalized strength training programs. Built on a LangGraph framework, it employs a multi-agent architecture backed by a domain-specific vector database of training literature. The system dynamically adjusts training variables — training split, set volume, intensity, exercise selection, and progression — based on user input and performance data, aiming to provide accessible, individualized strength training guidance at high quality to a fraction of the price.
 
 ## Screenshots
 
