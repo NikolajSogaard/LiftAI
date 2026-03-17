@@ -21,14 +21,38 @@ def setup_llm(
         temperature: float = 0.6,
         top_p: float = 0.9,
         respond_as_json: bool = False,
+        response_schema=None,
+        thinking_budget: int | None = None,
 ):
+    """Build and return a Gemini generation function.
+
+    Parameters
+    ----------
+    respond_as_json : bool
+        When True, sets response_mime_type="application/json" so the model is
+        *guaranteed* to emit valid JSON — no markdown fences, no prose wrap.
+    response_schema : Pydantic BaseModel subclass | None
+        If provided, Gemini enforces this schema on the output (structured output).
+        Only meaningful when respond_as_json=True.
+    """
     client = _get_client()
 
-    config = types.GenerateContentConfig(
+    config_kwargs: dict = dict(
         temperature=temperature,
         top_p=top_p,
         max_output_tokens=max_tokens,
     )
+
+    if respond_as_json:
+        # Guarantee clean JSON output — eliminates all markdown-fence / prose fallbacks
+        config_kwargs["response_mime_type"] = "application/json"
+        if response_schema is not None:
+            config_kwargs["response_schema"] = response_schema
+
+    if thinking_budget is not None:
+        config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=thinking_budget)
+
+    config = types.GenerateContentConfig(**config_kwargs)
 
     def generate_response(prompt):
         response = client.models.generate_content(
@@ -37,17 +61,16 @@ def setup_llm(
             config=config,
         )
         text = response.text.strip()
+
         if not respond_as_json:
             return text
+
+        # With response_mime_type="application/json" the model always outputs
+        # valid JSON, so this should never raise — but we keep the fallback.
         try:
-            if "```json" in text:
-                text = text.split("```json", 1)[1].split("```", 1)[0].strip()
-            elif not (text.startswith("{") and text.endswith("}")):
-                print("Plain text response, wrapping as JSON")
-                return {"weekly_program": {"Day 1": []}, "message": text}
             return json.loads(text)
         except json.JSONDecodeError as e:
-            print(f"JSON decode failed: {e}\nRaw: {text[:200]}")
+            print(f"JSON decode failed (unexpected): {e}\nRaw: {text[:200]}")
             return {"weekly_program": {"Day 1": []}, "message": text}
 
     return generate_response

@@ -76,17 +76,27 @@ def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
                     'reps': form.get(f"{prefix}_ex{i}_set{j}_reps"),
                     'actual_rpe': form.get(f"{prefix}_ex{i}_set{j}_actual_rpe")
                 })
+                # Superset A2 fields (only present when exercise is a superset)
+                a2_weight = form.get(f"{prefix}_ex{i}_a2set{j}_weight")
+                if a2_weight is not None:
+                    exercise_feedback.setdefault('a2_sets_data', []).append({
+                        'weight': a2_weight,
+                        'reps': form.get(f"{prefix}_ex{i}_a2set{j}_reps"),
+                        'actual_rpe': form.get(f"{prefix}_ex{i}_a2set{j}_actual_rpe")
+                    })
             feedback_data[day].append(exercise_feedback)
     return feedback_data
 
 DEFAULT_CONFIG = {
-    'model': 'gemini-2.5-pro',
+    'model': 'gemini-3-flash-preview',        # Writer & Editor
+    'critic_model': 'gemini-3-flash-preview', # Critic — 5 parallel tasks
     'max_tokens': 8000,
     'writer_temperature': 0.4,
     'writer_top_p': 0.9,
     'writer_prompt_settings': 'v1',
     'critic_prompt_settings': 'week1',
-    'max_iterations': 1
+    'max_iterations': 1,
+    'thinking_budget': None,                  # Set to e.g. 5000 if model supports ThinkingConfig
 }
 
 def get_program_generator(config=None):
@@ -114,9 +124,10 @@ def get_program_generator(config=None):
         respond_as_json=True,
         temperature=config['writer_temperature'],
         top_p=config['writer_top_p'],
+        thinking_budget=config.get('thinking_budget'),
     )
     llm_critic = setup_llm(
-        model=config['model'],
+        model=config.get('critic_model', config['model']),
         max_tokens=config['max_tokens'],
         respond_as_json=False,
     )

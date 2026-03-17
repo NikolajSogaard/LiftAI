@@ -19,16 +19,25 @@ class WriterPromptSettings:
 
 # Initial program creation task
 TASK_INITIAL = '''
-Create the best strength training program with a fitting frequency, training split, and numbers of training days, based on this input:
+Create the best strength training program for this individual:
 {}
 
-Follow this JSON structure as a guide for your response. The Editor will handle any formatting issues:
+STEP 1 — PLANNING (fill in the "reasoning" field):
+Before writing the program, briefly think through:
+- What training split and frequency fits this person's schedule, goals, and experience level?
+- Which exercises and movement patterns are most appropriate and why?
+- What weekly set volume is right for their level across all major muscle groups?
+
+STEP 2 — PROGRAM (fill in "weekly_program"):
+Output the complete program following this JSON structure exactly:
 {}
 
-Important: 
-- Make sure your program matches the user's experience level, goals, available training time, and any specific information they've provided. Create a personalized program that directly addresses their needs.
-- Make sure your program provides sufficient frequency for each major muscle group: chest, back, legs (posterior anterior chain).
-- Pick exercises for the individual's goals and needs (hypertrophy, strength, etc.), what order the exercises are placed, and consider set-volume for a whole week.
+Guidelines:
+- Match the program precisely to the user's experience level, goals, available training days, equipment, and any injuries or limitations they mentioned.
+- Ensure sufficient weekly frequency for every major muscle group (chest, back, shoulders, arms, quads, posterior chain).
+- Order exercises sensibly: compound movements first, isolation work later.
+- Keep weekly set volumes appropriate for the experience level.
+- Make the cues field genuinely useful: a brief, specific coaching note on form or intent for that exercise.
 '''
 
 # Revision task based on critic feedback
@@ -92,6 +101,7 @@ Follow this JSON structure as a guide for your response:
 
 PROGRAM_STRUCTURE_WEEK1 = '''
 {
+  "reasoning": "Brief planning notes: why this split, why these exercises, why this volume for this person.",
   "weekly_program": {
     "Day 1": [
       {
@@ -100,7 +110,7 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "reps": "8-12",
         "target_rpe": "7-8",
         "rest": "60-90 seconds",
-        "cues": "Brief note from AI about form, focus, or exercise purpose (keep it short)"
+        "cues": "Specific coaching note on form, focus, or purpose for this exercise"
       },
       {
         "name": "Exercise name",
@@ -108,15 +118,7 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "reps": "8-12",
         "target_rpe": "7-8",
         "rest": "2 minutes",
-        "cues": "Brief note from AI about form, focus, or exercise purpose (keep it short)"
-      },
-      {
-        "name": "Exercise name",
-        "sets": 3,
-        "reps": "8-12",
-        "target_rpe": "7-8",
-        "rest": "60-90 seconds",
-        "cues": "Brief note from AI about form, focus, or exercise purpose (keep it short)"
+        "cues": "Specific coaching note on form, focus, or purpose for this exercise"
       }
     ],
     "Day 2": [
@@ -124,14 +126,14 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "name": "Exercise name",
         "sets": 4,
         "reps": "5-8",
-        "target_rpe": "8-10",
+        "target_rpe": "8-9",
         "rest": "2-3 minutes",
-        "cues": "Brief note from AI about form, focus points, or exercise purpose (keep it short)"
+        "cues": "Specific coaching note on form, focus points, or exercise purpose"
       }
-    ],
-    "Day X": etc. continue generating each training day of the week.
+    ]
   }
 }
+(continue for all training days)
 '''
 
 # Specific role for initial program creation

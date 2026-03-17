@@ -1,6 +1,7 @@
 import os
 import pickle
 from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 import faiss
 import numpy as np
 
@@ -25,7 +26,7 @@ def _get_generate_response():
     global _generate_response
     if _generate_response is None:
         from agent_system.setup_api import setup_llm
-        _generate_response = setup_llm(model="gemini-2.5-flash", max_tokens=1000, temperature=0.3)
+        _generate_response = setup_llm(model="gemini-3-flash-preview", max_tokens=1000, temperature=0.3)
     return _generate_response
 
 
@@ -47,19 +48,98 @@ def _embed_query(query: str) -> np.ndarray:
     return np.array(_get_embedding_model().embed_query(query), dtype="float32")
 
 
-def retrieve_context(query, k=8):
-    """Retrieve top-k relevant chunks from FAISS. Returns (context, summary, sources)."""
+def _embed_uncached(text: str) -> np.ndarray:
+    """Embed without caching — used for HyDE hypothetical documents."""
+    return np.array(_get_embedding_model().embed_query(text), dtype="float32")
+
+
+def _generate_hypothetical_document(query: str) -> str:
+    """HyDE: generate a hypothetical ideal passage that would answer the query.
+
+    Searching with the embedding of this passage finds training-literature chunks
+    much more reliably than searching with the embedding of the raw question,
+    because the hypothetical is in 'document space' rather than 'query space'.
+    """
+    llm = _get_generate_response()
+    prompt = (
+        "You are a strength training researcher. "
+        "Write a concise expert passage (3-5 sentences) from a strength training "
+        "textbook or peer-reviewed paper that would directly and specifically answer:\n\n"
+        f'"{query}"\n\n'
+        "Write only the expert content — no preamble, no attribution, no meta-commentary."
+    )
+    return llm(prompt)
+
+
+def _grade_chunk(chunk: str, query: str, grader) -> bool:
+    """CRAG: grade whether a chunk is relevant to the query using the fast model."""
+    prompt = (
+        "Is the following text relevant to answering this query?\n\n"
+        f"Query: {query}\n\n"
+        f"Text: {chunk[:500]}\n\n"
+        "Reply with only 'yes' or 'no'."
+    )
+    try:
+        result = grader(prompt).strip().lower()
+        return result.startswith('y')
+    except Exception:
+        return True  # keep on failure
+
+
+def _crag_filter(hits: list, query: str) -> list:
+    """Run CRAG relevance grading in parallel; return only relevant chunks.
+    Falls back to full hit list if all chunks are graded irrelevant."""
+    grader = _get_generate_response()
+
+    def _grade(hit):
+        return _grade_chunk(hit[0], query, grader)
+
+    with ThreadPoolExecutor(max_workers=min(len(hits), 4)) as ex:
+        grades = list(ex.map(_grade, hits))
+
+    relevant = [h for h, keep in zip(hits, grades) if keep]
+    if not relevant:
+        print("CRAG: all chunks graded irrelevant — keeping top 3 as fallback")
+        return hits[:3]
+    removed = len(hits) - len(relevant)
+    if removed:
+        print(f"CRAG: filtered {removed}/{len(hits)} irrelevant chunks")
+    return relevant
+
+
+def retrieve_context(query: str, k: int = 8, use_hyde: bool = True, use_crag: bool = True):
+    """Retrieve top-k relevant chunks from FAISS.
+
+    When use_hyde=True (default), embeds a hypothetical ideal answer instead of
+    the raw query for significantly better semantic retrieval (HyDE technique).
+    Results are ranked by cosine similarity score, not chunk length.
+    """
     index, texts, metadatas = _get_index()
-    vec = _embed_query(query).copy().reshape(1, -1)  # copy: normalize_L2 mutates in-place
+
+    if use_hyde:
+        try:
+            embed_text = _generate_hypothetical_document(query)
+        except Exception as e:
+            print(f"HyDE generation failed, falling back to direct query embedding: {e}")
+            embed_text = query
+        vec = _embed_uncached(embed_text).copy().reshape(1, -1)
+    else:
+        vec = _embed_query(query).copy().reshape(1, -1)
+
     faiss.normalize_L2(vec)
     scores, indices = index.search(vec, k)
 
-    # rerank by chunk length (longer = more informative)
-    hits = sorted(
-        [(texts[i], metadatas[i], scores[0][rank]) for rank, i in enumerate(indices[0]) if i != -1],
-        key=lambda x: len(x[0]),
-        reverse=True,
-    )
+    # Rank by actual cosine similarity score (higher = more relevant)
+    hits = [
+        (texts[i], metadatas[i], float(scores[0][rank]))
+        for rank, i in enumerate(indices[0])
+        if i != -1
+    ]
+    hits.sort(key=lambda x: x[2], reverse=True)
+
+    # CRAG: filter out irrelevant chunks before passing to the LLM
+    if use_crag and len(hits) > 1:
+        hits = _crag_filter(hits, query)
 
     context = "\n\n".join(t for t, _, _ in hits)
     summary = context[:200] + "..." if len(context) > 200 else context
@@ -67,14 +147,14 @@ def retrieve_context(query, k=8):
     return context, summary, sources
 
 
-def retrieve_and_generate(query, specialized_instructions=""):
-    """Retrieve relevant context and generate a response using Gemini."""
+def retrieve_and_generate(query: str, specialized_instructions: str = "") -> tuple:
+    """Retrieve relevant context and synthesise a response using Gemini."""
     context, summary, sources = retrieve_context(query)
     prompt = f"""You are a specialized strength training expert.
 {specialized_instructions}
 
-Using the following excerpts from strength training books, programs.
-Include practical advice recommendations, and clear explanations.
+Using the following excerpts from strength training books and programs, provide a focused,
+evidence-based answer. Include practical recommendations and clear explanations.
 Do not answer outside the scope of the query.
 
 Summary of Retrieved Information:

@@ -39,7 +39,8 @@ class Writer:
 
     def get_retrieval_query(self, program: dict[str, str | None]) -> str:
         if self.writer_type == "initial":
-            return "Best practices for designing a strength training program based on {user_input} and preferences."
+            user_input = program.get('user-input', '')
+            return f"Best practices for designing a strength training program for someone with these goals and preferences: {user_input}"
         return ""
 
     def format_previous_week_program(self, program: dict[str, str | None]) -> str:
@@ -124,11 +125,17 @@ class Writer:
                     "- NO additional text or explanations whatsoever\n"
                 )
         
-        # Build prompt
+        # Build prompt — prepend Reflexion lessons if any exist
         if is_progression and previous_program_formatted:
             content = revision_task.format(previous_program_formatted, program['feedback'], self.structure)
         else:
             content = revision_task.format(program['draft'], program['feedback'], self.structure)
+
+        lessons = program.get('lessons', [])
+        if lessons:
+            lessons_block = "Key lessons from previous revision attempts (do NOT repeat these mistakes):\n"
+            lessons_block += "\n".join(f"- {l}" for l in lessons)
+            content = lessons_block + "\n\n" + content
         
         prompt = self._build_prompt([self.role, {'role': 'user', 'content': content}])
 
