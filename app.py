@@ -41,6 +41,44 @@ Session(app) # initialize session management
 _generation_queues: dict[str, queue.Queue] = {}
 _generation_results: dict[str, dict] = {}
 
+_personas_cache = None
+
+def _get_personas() -> dict:
+    """Load personas JSON once and cache for the process lifetime."""
+    global _personas_cache
+    if _personas_cache is None:
+        try:
+            with open('Data/personas/personas_vers2.json') as f:
+                _personas_cache = json.load(f)["Personas"]
+        except Exception:
+            _personas_cache = {}
+    return _personas_cache
+
+def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
+    """Parse set/rep/RPE form data into a feedback_data dict.
+
+    key_prefix is prepended to the day key, e.g. pass "{week}_" for next_week.
+    """
+    feedback_data = {}
+    for day, exercises in program.items():
+        day_key = day.replace(' ', '')
+        prefix = f"{key_prefix}{day_key}" if key_prefix else day_key
+        feedback_data[day] = []
+        for i, exercise in enumerate(exercises):
+            exercise_feedback = {
+                'name': exercise['name'],
+                'sets_data': [],
+                'overall_feedback': form.get(f"{prefix}_ex{i}_feedback", "")
+            }
+            for j in range(exercise.get('sets', 0)):
+                exercise_feedback['sets_data'].append({
+                    'weight': form.get(f"{prefix}_ex{i}_set{j}_weight"),
+                    'reps': form.get(f"{prefix}_ex{i}_set{j}_reps"),
+                    'actual_rpe': form.get(f"{prefix}_ex{i}_set{j}_actual_rpe")
+                })
+            feedback_data[day].append(exercise_feedback)
+    return feedback_data
+
 DEFAULT_CONFIG = {
     'model': 'gemini-2.5-pro',
     'max_tokens': 8000,
@@ -188,14 +226,9 @@ def generate_program():
         
         program_input = user_input
         if persona:
-            try:
-                with open('Data/personas/personas_vers2.json') as f:
-                    personas = json.load(f)["Personas"]
-                selected = personas.get(persona)
-                if selected:
-                    program_input = f"{user_input}\nTarget Persona: {selected}"
-            except Exception as e:
-                flash(f"Error loading persona: {e}")
+            selected = _get_personas().get(persona)
+            if selected:
+                program_input = f"{user_input}\nTarget Persona: {selected}"
         
         # Create a job id and queue for SSE streaming
         job_id = uuid.uuid4().hex[:12]
@@ -278,29 +311,8 @@ def submit_feedback():
     if 'program' not in session:
         flash("No active program to provide feedback for.")
         return redirect(url_for('index'))
-    feedback_data = {}
     program = session.get('program', {})
-
-    for day, exercises in program.items():
-        day_key = day.replace(' ', '')
-        feedback_data[day] = []
-
-        for i, exercise in enumerate(exercises):
-            exercise_feedback = {
-                'name': exercise['name'],
-                'sets_data': [],
-                'overall_feedback': request.form.get(f"{day_key}_ex{i}_feedback", "")
-            }
-            for j in range(exercise.get('sets', 0)):
-                set_data = {
-                    'weight': request.form.get(f"{day_key}_ex{i}_set{j}_weight"),
-                    'reps': request.form.get(f"{day_key}_ex{i}_set{j}_reps"),
-                    'actual_rpe': request.form.get(f"{day_key}_ex{i}_set{j}_actual_rpe")
-                }
-                exercise_feedback['sets_data'].append(set_data)
-
-            feedback_data[day].append(exercise_feedback)
-
+    feedback_data = _parse_feedback_form(program, request.form)
     session['feedback'] = feedback_data
     flash("Feedback submitted successfully!")
     return redirect(url_for('index'))
@@ -323,29 +335,9 @@ def next_week():
         flash("No program available to generate next week's program")
         return redirect(url_for('generate_program'))
 
-    feedback_data = {}
     program = session.get('program', {})
     current_week = session.get('current_week', 1)
-
-    for day, exercises in program.items():
-        day_key = day.replace(' ', '')
-        feedback_data[day] = []
-
-        for i, exercise in enumerate(exercises):
-            exercise_feedback = {
-                'name': exercise['name'],
-                'sets_data': [],
-                'overall_feedback': request.form.get(f"{current_week}_{day_key}_ex{i}_feedback", "")
-            }
-            for j in range(exercise.get('sets', 0)):
-                set_data = {
-                    'weight': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_weight"),
-                    'reps': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_reps"),
-                    'actual_rpe': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_actual_rpe")
-                }
-                exercise_feedback['sets_data'].append(set_data)
-            feedback_data[day].append(exercise_feedback)
-
+    feedback_data = _parse_feedback_form(program, request.form, key_prefix=f"{current_week}_")
     session['feedback'] = feedback_data
     current_program = session['raw_program']
 
@@ -370,14 +362,9 @@ def next_week():
     )
 
     if session.get('persona'):
-        try:
-            with open('Data/personas/personas_vers2.json') as f:
-                personas = json.load(f)["Personas"]
-            selected_persona = personas.get(session['persona'])
-            if selected_persona:
-                next_week_input += f"\nTarget Persona: {selected_persona}"
-        except Exception as e:
-            flash(f"Error loading persona: {e}")
+        selected_persona = _get_personas().get(session['persona'])
+        if selected_persona:
+            next_week_input += f"\nTarget Persona: {selected_persona}"
 
     new_week = current_week + 1
     config = DEFAULT_CONFIG.copy()

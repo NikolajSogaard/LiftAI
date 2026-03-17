@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional, Callable, List
 from rag_retrieval import retrieve_and_generate, retrieve_context
 from .critique_task import CritiqueTask
@@ -218,51 +219,73 @@ class Critic:
             print(f"Error in {task_type.upper()} critique: {e}")
             return f"Error in {task_type} critique: {e}"
 
+    def _process_task_result(self, task_type: str, feedback) -> tuple[str, str | None]:
+        """Validate and clean a single task's feedback. Returns (task_type, processed|None)."""
+        label = self._task_labels.get(task_type, task_type.replace('_', ' ').title())
+        if not feedback or not isinstance(feedback, str) or len(feedback.strip()) <= 10:
+            print(f"{task_type.upper()} - No significant feedback")
+            self._emit(f"{label}: No issues found ✓", detail=True)
+            return task_type, None
+
+        processed = feedback.rstrip("None").strip() if feedback.strip().endswith("None") else feedback
+        if len(processed.strip()) <= 10:
+            self._emit(f"{label}: No issues found ✓", detail=True)
+            return task_type, None
+
+        if 'no changes' in processed.lower() or 'therefore, no changes' in processed.lower():
+            print(f"{task_type.upper()} - No changes needed")
+            self._emit(f"{label}: No changes needed ✓", detail=True)
+            return task_type, None
+
+        return task_type, processed
+
     def critique(self, program: dict[str, str | None]) -> dict[str, str | None]:
-        """Run all critique tasks sequentially, each with its own RAG retrieval."""
+        """Run all critique tasks in parallel, each with its own RAG retrieval."""
         print("\n========== CRITIQUE PROCESS STARTED ==========")
+
+        # Run all tasks concurrently — tasks are independent (dependency context is
+        # informational only and not required for correctness).
+        with ThreadPoolExecutor(max_workers=len(self.task_types)) as executor:
+            futures = {
+                executor.submit(self.run_single_critique, program, task_type, {}): task_type
+                for task_type in self.task_types
+            }
+            raw_results: dict[str, str | None] = {}
+            for future in as_completed(futures):
+                task_type = futures[future]
+                try:
+                    raw_results[task_type] = future.result()
+                except Exception as e:
+                    print(f"Error in {task_type.upper()} critique: {e}")
+                    raw_results[task_type] = None
+
+        # Process results in original task order for consistent output
         all_feedback = []
-        previous_results = {}
-        
         for task_type in self.task_types:
-            feedback = self.run_single_critique(program, task_type, previous_results)
             label = self._task_labels.get(task_type, task_type.replace('_', ' ').title())
-            if not feedback or not isinstance(feedback, str) or len(feedback.strip()) <= 10:
-                print(f"{task_type.upper()} - No significant feedback")
-                self._emit(f"{label}: No issues found ✓", detail=True)
+            _, processed = self._process_task_result(task_type, raw_results.get(task_type))
+            if processed is None:
                 continue
-            
-            processed = feedback.rstrip("None").strip() if feedback.strip().endswith("None") else feedback
-            if len(processed.strip()) <= 10:
-                self._emit(f"{label}: No issues found ✓", detail=True)
-                continue
-                
-            previous_results[task_type] = processed
-            if 'no changes' not in processed.lower() and 'therefore, no changes' not in processed.lower():
-                all_feedback.append(f"[{task_type.upper()} FEEDBACK]:\n{processed}\n")
-                # Emit the full feedback to the UI
-                self._emit(f"{label} feedback:\n{processed}", detail=True)
-                print(f"\n{'='*50}\n{task_type.upper()} CRITIQUE:\n{'='*50}")
-                # Word-wrap for console
-                line = ""
-                for word in processed.split():
-                    if len(line) + len(word) > 80:
-                        print(line)
-                        line = word + " "
-                    else:
-                        line += word + " "
-                if line:
+
+            all_feedback.append(f"[{task_type.upper()} FEEDBACK]:\n{processed}\n")
+            self._emit(f"{label} feedback:\n{processed}", detail=True)
+            print(f"\n{'='*50}\n{task_type.upper()} CRITIQUE:\n{'='*50}")
+            line = ""
+            for word in processed.split():
+                if len(line) + len(word) > 80:
                     print(line)
-                print(f"{'='*50}\n")
-            else:
-                print(f"{task_type.upper()} - No changes needed")
-                self._emit(f"{label}: No changes needed ✓", detail=True)
-        
+                    line = word + " "
+                else:
+                    line += word + " "
+            if line:
+                print(line)
+            print(f"{'='*50}\n")
+
         if not all_feedback:
             print('No actionable feedback from any critique task')
-            self._emit(f"Critique complete — no actionable feedback")
+            self._emit("Critique complete — no actionable feedback")
             return {'feedback': None}
-        
+
         combined = "\n".join(all_feedback)
         self._emit(f"Critique complete — {len(all_feedback)} area(s) with suggestions")
         print(f"\n========== CRITIQUE COMPLETE ({len(all_feedback)}/{len(self.task_types)}) ==========")

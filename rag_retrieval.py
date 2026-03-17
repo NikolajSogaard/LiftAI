@@ -1,5 +1,6 @@
 import os
 import pickle
+from functools import lru_cache
 import faiss
 import numpy as np
 
@@ -40,10 +41,16 @@ def _get_index(directory=FAISS_DIR):
     return _faiss_index, _doc_texts, _doc_metadatas
 
 
+@lru_cache(maxsize=128)
+def _embed_query(query: str) -> np.ndarray:
+    """Embed a query string; cached so identical queries skip the API call."""
+    return np.array(_get_embedding_model().embed_query(query), dtype="float32")
+
+
 def retrieve_context(query, k=8):
     """Retrieve top-k relevant chunks from FAISS. Returns (context, summary, sources)."""
     index, texts, metadatas = _get_index()
-    vec = np.array(_get_embedding_model().embed_query(query), dtype="float32").reshape(1, -1)
+    vec = _embed_query(query).copy().reshape(1, -1)  # copy: normalize_L2 mutates in-place
     faiss.normalize_L2(vec)
     scores, indices = index.search(vec, k)
 

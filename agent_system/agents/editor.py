@@ -4,6 +4,7 @@ as occurring in the writer agent, but it actually happens here in the editor.
 """
 
 import json
+from agent_system.utils import parse_json_draft
 
 class Editor:
     def __init__(self, writer=None):
@@ -34,40 +35,7 @@ class Editor:
 
     def extract_weekly_program(self, data) -> dict:
         """Extract weekly_program dict from various nested/stringified formats."""
-        if isinstance(data, dict):
-            if 'weekly_program' in data:
-                return data['weekly_program']
-            if 'formatted' in data and isinstance(data['formatted'], dict):
-                fmt = data['formatted']
-                return fmt.get('weekly_program', fmt)
-            if 'draft' in data:
-                return self.extract_weekly_program(data['draft'])
-            if 'message' in data and isinstance(data['message'], str):
-                return self._try_parse_json(data['message'])
-
-        elif isinstance(data, str):
-            return self._try_parse_json(data)
-
-        return {}
-
-    def _try_parse_json(self, text):
-        """Try to parse JSON from raw text or ```json blocks."""
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                return parsed.get('weekly_program', parsed)
-        except json.JSONDecodeError:
-            pass
-        # Try extracting from markdown code block
-        if "```json" in text:
-            try:
-                chunk = text.split("```json", 1)[1].split("```", 1)[0].strip()
-                parsed = json.loads(chunk)
-                if isinstance(parsed, dict):
-                    return parsed.get('weekly_program', parsed)
-            except (json.JSONDecodeError, IndexError):
-                pass
-        return {}
+        return parse_json_draft(data)
 
     def format_program(self, program: dict[str, str | None]) -> dict:
         """Validate and normalize the program into a consistent format for the web app."""

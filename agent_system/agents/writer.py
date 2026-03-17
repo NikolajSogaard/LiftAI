@@ -2,6 +2,7 @@ import json
 import re
 from typing import Dict, Optional, Callable
 from rag_retrieval import retrieve_and_generate
+from agent_system.utils import parse_json_draft
 
 class Writer:
     def __init__(
@@ -140,10 +141,6 @@ class Writer:
             if is_progression and isinstance(draft, dict) and 'weekly_program' in draft:
                 draft = self._merge_progression(program, draft)
             
-            # Clean up suggestion formatting
-            if isinstance(draft, dict) and 'weekly_program' in draft:
-                self._clean_suggestions(draft['weekly_program'])
-            
             # Handle string responses
             if isinstance(draft, str):
                 draft = self._parse_string_draft(draft)
@@ -151,11 +148,10 @@ class Writer:
         except Exception as e:
             print(f"Error during revision: {e}")
             draft = {"weekly_program": {"Day 1": []}, "message": f"Error: {e}"}
-        
-        # Final pass for progression format enforcement
+
+        # Single-pass normalization for progression format
         if is_progression and isinstance(draft, dict) and 'weekly_program' in draft:
-            self._enforce_progression_format(draft, program)
-            self._sync_suggestion_fields(draft['weekly_program'])
+            self._normalize_progression_suggestions(draft['weekly_program'], program)
 
         return draft
 
@@ -185,74 +181,69 @@ class Writer:
         draft['weekly_program'] = merged
         return draft
 
-    def _clean_suggestions(self, weekly_program):
-        """Extract set-data and adjustment lines from suggestion text."""
+    def _normalize_progression_suggestions(self, weekly_program, program):
+        """Single-pass normalization: clean, enforce format, and sync suggestion fields."""
         for day, exercises in weekly_program.items():
             for ex in exercises:
-                suggestion = ex.get("suggestion")
-                if not suggestion or not isinstance(suggestion, str):
+                # Prefer 'AI Progression', fall back to 'suggestion'
+                val = ex.get("AI Progression") or ex.get("suggestion")
+                if not val or not isinstance(val, str):
                     continue
-                lines = suggestion.split('\n')
-                cleaned, adjustment = [], None
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith("Set ") and "(" in line:
-                        cleaned.append(line)
-                    elif any(m in line for m in ["kg ↑", "kg ↓", "reps ↑", "reps ↓"]):
-                        adjustment = line
-                        break
-                if adjustment:
-                    cleaned.append(adjustment)
-                if cleaned:
-                    formatted = "\n".join(cleaned)
-                    ex["suggestion"] = formatted
-                    if "AI Progression" in ex:
-                        ex["AI Progression"] = formatted
+
+                normalized = self._extract_and_format_suggestion(val, program, day, exercises, ex)
+                if normalized:
+                    ex["AI Progression"] = normalized
+                    ex["suggestion"] = normalized
+
+    def _extract_and_format_suggestion(self, val, program, day, exercises, ex):
+        """Parse a suggestion string into canonical Set X:(...) + adjustment format."""
+        lines = val.strip().split('\n')
+
+        # Fast path: already well-formed (starts with "Set 1:" and has parens)
+        if val.strip().startswith("Set 1:") and "(" in val:
+            perf = [l.strip() for l in lines if l.strip().startswith("Set ")]
+            adj = next((l.strip() for l in lines if l.strip() and not l.strip().startswith("Set ")), None)
+            if adj:
+                perf.append(adj)
+            return "\n".join(perf) if perf else None
+
+        # Try to extract Set X: lines and adjustment from a messier string
+        cleaned, adjustment = [], None
+        for line in lines:
+            line = line.strip()
+            if line.startswith("Set ") and "(" in line:
+                cleaned.append(line)
+            elif any(m in line for m in ["kg ↑", "kg ↓", "reps ↑", "reps ↓"]):
+                adjustment = line
+                break
+
+        if cleaned:
+            if adjustment:
+                cleaned.append(adjustment)
+            return "\n".join(cleaned)
+
+        # Last resort: regex-extract rep/weight numbers and recover perf lines
+        rep_m = re.search(r'(\d+)\s*reps?', val)
+        wt_m = re.search(r'(\d+(?:\.\d+)?)\s*kg', val)
+        if not (rep_m or wt_m):
+            return None
+
+        perf_lines = self._get_original_perf_lines(program, day, exercises, ex)
+        if rep_m and "reps" in val.lower():
+            adj = f"        {rep_m.group(1)} reps ↑"
+        elif wt_m:
+            adj = f"        {wt_m.group(1)}kg ↑"
+        else:
+            adj = "        Maintain current weight and reps"
+        return "\n".join(perf_lines + [adj])
 
     def _parse_string_draft(self, draft_str):
         """Try to parse a string draft into a dict, with fallback."""
-        try:
-            if "```json" in draft_str:
-                chunk = draft_str.split("```json", 1)[1].split("```", 1)[0].strip()
-                return json.loads(chunk)
-            elif draft_str.strip().startswith("{") and draft_str.strip().endswith("}"):
-                return json.loads(draft_str)
-        except json.JSONDecodeError as e:
-            print(f"JSON parse failed: {e}")
+        parsed = parse_json_draft(draft_str)
+        if parsed:
+            return {"weekly_program": parsed}
         return {"weekly_program": {"Day 1": []}, "message": draft_str}
 
-    def _enforce_progression_format(self, draft, program):
-        """Ensure progression suggestions follow the Set X:(...) + adjustment format."""
-        for day, exercises in draft['weekly_program'].items():
-            for ex in exercises:
-                for field in ("AI Progression", "suggestion"):
-                    val = ex.get(field)
-                    if not val or not isinstance(val, str):
-                        continue
-                    
-                    is_formatted = val.strip().startswith("Set 1:") and "(" in val
-                    lines = val.strip().split('\n')
-                    
-                    if is_formatted:
-                        perf = [l.strip() for l in lines if l.strip().startswith("Set ")]
-                        adj = next((l.strip() for l in lines if l.strip() and not l.strip().startswith("Set ")), None)
-                        if adj:
-                            perf.append(adj)
-                        ex[field] = "\n".join(perf)
-                    else:
-                        rep_m = re.search(r'(\d+)\s*reps?', val)
-                        wt_m = re.search(r'(\d+(?:\.\d+)?)\s*kg', val)
-                        if not (rep_m or wt_m):
-                            continue
-                        # Try to recover original performance lines
-                        perf_lines = self._get_original_perf_lines(program, day, exercises, ex)
-                        if rep_m and "reps" in val.lower():
-                            adj = f"        {rep_m.group(1)} reps ↑"
-                        elif wt_m:
-                            adj = f"        {wt_m.group(1)}kg ↑"
-                        else:
-                            adj = "        Maintain current weight and reps"
-                        ex[field] = "\n".join(perf_lines + [adj])
 
     def _get_original_perf_lines(self, program, day, exercises, exercise):
         """Look up original performance data for an exercise from the previous draft."""
@@ -267,15 +258,6 @@ class Writer:
             if isinstance(orig_val, str) and orig_val.strip().startswith("Set 1:"):
                 return [l.strip() for l in orig_val.strip().split('\n') if l.strip().startswith("Set ")]
         return ["Set 1:(Performance data unavailable)"]
-
-    def _sync_suggestion_fields(self, weekly_program):
-        """Keep 'AI Progression' and 'suggestion' in sync."""
-        for day, exercises in weekly_program.items():
-            for ex in exercises:
-                if ex.get("AI Progression"):
-                    ex["suggestion"] = ex["AI Progression"]
-                elif ex.get("suggestion"):
-                    ex["AI Progression"] = ex["suggestion"]
 
     def __call__(self, program: dict[str, str | None]) -> dict[str, str | None]:
         if self.writer_type == "progression" and 'feedback' in program:
