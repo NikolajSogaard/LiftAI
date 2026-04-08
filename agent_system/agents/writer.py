@@ -4,6 +4,7 @@ import re
 from typing import Dict, Optional, Callable
 from rag_retrieval import retrieve_and_generate
 from agent_system.utils import parse_json_draft
+from config import LESSON_MAX_CHARS
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class Writer:
             return f"How to revise and improve a strength training program based on feedback: {user_input}"
         return f"Strength training program design best practices: {user_input}"
 
-    def format_previous_week_program(self, program: dict[str, str | None]) -> str:
+    def format_previous_week_program(self, program: dict) -> str:
         """Extract and format the previous week's program as JSON for progression prompts."""
         from .editor import Editor
         editor = Editor()
@@ -76,7 +77,23 @@ class Writer:
             for item in parts
         )
 
-    def write(self, program: dict[str, str | None]):
+    def write(self, program: dict) -> dict:
+        """Generate the initial training program draft.
+
+        Retrieves relevant context from the RAG index, builds a prompt from
+        the user input and writer role, calls the LLM, and stores the result
+        in ``program['draft']``.
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict. Must contain 'user-input'.
+
+        Returns
+        -------
+        dict
+            Updated state with 'draft' populated.
+        """
         query = self.get_retrieval_query(program)
         user_input = program.get('user-input', '')
         instructions = self.specialized_instructions.get(self.writer_type, "")
@@ -105,7 +122,26 @@ class Writer:
             draft = {"weekly_program": {"Day 1": []}, "message": draft}
         return draft
 
-    def revise(self, program: dict[str, str | None], override_type: str = None):
+    def revise(self, program: dict, override_type: str | None = None) -> dict:
+        """Revise an existing program draft based on critic feedback.
+
+        Supports three modes via ``override_type`` or ``self.writer_type``:
+        - ``revision``: standard feedback-driven rewrite of the draft
+        - ``progression``: update suggestions only, preserving structure
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict with 'draft', 'feedback', and optionally
+            'lessons' and 'week_number'.
+        override_type:
+            Force a specific writer mode. Defaults to ``self.writer_type``.
+
+        Returns
+        -------
+        dict
+            The updated draft (weekly_program dict).
+        """
         current_type = override_type or self.writer_type
 
         # Resolve revision task
@@ -265,12 +301,12 @@ class Writer:
             adj = "        Maintain current weight and reps"
         return "\n".join(perf_lines + [adj])
 
-    def _parse_string_draft(self, draft_str):
+    def _parse_string_draft(self, text: str) -> dict:
         """Try to parse a string draft into a dict, with fallback."""
-        parsed = parse_json_draft(draft_str)
+        parsed = parse_json_draft(text)
         if parsed:
             return {"weekly_program": parsed}
-        return {"weekly_program": {"Day 1": []}, "message": draft_str}
+        return {"weekly_program": {"Day 1": []}, "message": text}
 
 
     def _get_original_perf_lines(self, program, day, exercises, exercise):
