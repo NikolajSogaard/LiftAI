@@ -1,3 +1,6 @@
+"""Build the FAISS vector index from PDF training literature in Data/books/."""
+
+import logging
 import os
 import sys
 import json
@@ -8,12 +11,13 @@ import faiss
 import numpy as np
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-FAISS_DIR = os.path.join("Data", "faiss_db")
-BOOKS_DIR = os.path.join("Data", "books")
-PAGE_TIMEOUT = 30  # seconds per page extraction
+from config import FAISS_DIR, BOOKS_DIR, PDF_SUBPROCESS_TIMEOUT
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 
-def load_pdfs(path):
+def load_pdfs(path: str) -> list[str]:
     """Read all PDFs using a subprocess per page to avoid hangs."""
     script = r'''
 import sys, json, fitz
@@ -30,7 +34,7 @@ print(json.dumps(page.get_text()))
         try:
             page_count = len(fitz.open(fpath))
         except Exception as e:
-            print(f"  SKIP {fname}: can't open ({e})")
+            logger.warning("SKIP %s: can't open (%s)", fname, e)
             continue
 
         pages, skipped = [], 0
@@ -38,7 +42,7 @@ print(json.dumps(page.get_text()))
             try:
                 r = subprocess.run(
                     [python, "-c", script, fpath, str(i)],
-                    capture_output=True, text=True, timeout=PAGE_TIMEOUT,
+                    capture_output=True, text=True, timeout=PDF_SUBPROCESS_TIMEOUT,
                 )
                 if r.returncode == 0 and r.stdout.strip():
                     pages.append(json.loads(r.stdout.strip()))
@@ -53,11 +57,11 @@ print(json.dumps(page.get_text()))
         if text.strip():
             docs.append({"text": text, "metadata": {"source": fname}})
         suffix = f" (skipped {skipped}/{page_count} pages)" if skipped else ""
-        print(f"  {fname} ({page_count} pages){suffix}")
+        logger.info("%s (%s pages)%s", fname, page_count, suffix)
     return docs
 
 
-def chunk_documents(docs, chunk_size=1000, chunk_overlap=200):
+def chunk_documents(docs: list[str], chunk_size=1000, chunk_overlap=200) -> list[str]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -75,14 +79,14 @@ def build_faiss_index(chunks, embedding_model):
     texts = [c["text"] for c in chunks]
     metadatas = [c["metadata"] for c in chunks]
 
-    print(f"Embedding {len(texts)} chunks (this may take a while)...")
+    logger.info("Embedding %s chunks (this may take a while)...", len(texts))
     batch_size = 50
     all_vecs = []
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         vecs = embedding_model.embed_documents(batch)
         all_vecs.extend(vecs)
-        print(f"  Embedded {min(i + batch_size, len(texts))}/{len(texts)}")
+        logger.info("Embedded %s/%s", min(i + batch_size, len(texts)), len(texts))
 
     matrix = np.array(all_vecs, dtype="float32")
     dim = matrix.shape[1]
@@ -99,32 +103,50 @@ def save_index(index, texts, metadatas, out_dir):
     faiss.write_index(index, os.path.join(out_dir, "index.faiss"))
     with open(os.path.join(out_dir, "docs.pkl"), "wb") as f:
         pickle.dump({"texts": texts, "metadatas": metadatas}, f)
-    print(f"Saved FAISS index + metadata to {out_dir}/")
+    logger.info("Saved FAISS index + metadata to %s/", out_dir)
+
+
+def build_index(chunks: list[str]) -> None:
+    from agent_system.setup_api import setup_embeddings
+
+    if not chunks:
+        logger.warning("No chunks provided — nothing to index.")
+        return
+
+    embedding_model = setup_embeddings(model="gemini-embedding-001")
+    index, texts, metadatas = build_faiss_index(chunks, embedding_model)
+    save_index(index, texts, metadatas, FAISS_DIR)
+    logger.info("Done — %s vectors in the index.", index.ntotal)
 
 
 def main():
     from agent_system.setup_api import setup_embeddings
 
     if not os.path.exists(BOOKS_DIR):
-        print(f"Directory '{BOOKS_DIR}' not found.")
+        logger.warning("Directory '%s' not found.", BOOKS_DIR)
         return
 
-    print("Loading PDFs...")
+    logger.info("Loading PDFs...")
     docs = load_pdfs(BOOKS_DIR)
     if not docs:
-        print("No documents found.")
+        logger.warning("No documents found.")
         return
 
-    print(f"\nChunking {len(docs)} documents...")
+    logger.info("Chunking %s documents...", len(docs))
     chunks = chunk_documents(docs)
-    print(f"Created {len(chunks)} chunks")
+    logger.info("Created %s chunks", len(chunks))
 
     embedding_model = setup_embeddings(model="gemini-embedding-001")
     index, texts, metadatas = build_faiss_index(chunks, embedding_model)
 
     save_index(index, texts, metadatas, FAISS_DIR)
-    print(f"Done — {index.ntotal} vectors in the index.")
+    logger.info("Done — %s vectors in the index.", index.ntotal)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        build_index(chunk_documents(load_pdfs(BOOKS_DIR)))
+        logger.info("FAISS index built successfully at %s", FAISS_DIR)
+    except Exception:
+        logger.exception("Fatal error building FAISS index")
+        sys.exit(1)
