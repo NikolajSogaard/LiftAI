@@ -150,7 +150,7 @@ class Writer:
             content = revision_task.format(previous_program_formatted, program['feedback'], self.structure)
         else:
             draft_str = json.dumps(program['draft'], indent=2) if isinstance(program['draft'], dict) else program['draft']
-        content = revision_task.format(draft_str, program['feedback'], self.structure)
+            content = revision_task.format(draft_str, program['feedback'], self.structure)
 
         lessons = program.get('lessons', [])
         if lessons:
