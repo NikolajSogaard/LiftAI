@@ -2,8 +2,12 @@ from dotenv import load_dotenv
 import os
 import json
 import time
+import logging
 from google import genai
 from google.genai import types
+from config import EMBEDDING_RETRIES, EMBEDDING_RETRY_DELAY
+
+logger = logging.getLogger(__name__)
 
 
 def _get_client():
@@ -70,7 +74,7 @@ def setup_llm(
         try:
             return json.loads(text)
         except json.JSONDecodeError as e:
-            print(f"JSON decode failed (unexpected): {e}\nRaw: {text[:200]}")
+            logger.warning("JSON decode failed (unexpected): %s | Raw: %.200s", e, text)
             return {"weekly_program": {"Day 1": []}, "message": text}
 
     return generate_response
@@ -79,33 +83,51 @@ def setup_llm(
 class _EmbeddingModel:
     """Thin wrapper around google.genai embeddings to keep embed_query / embed_documents API."""
 
-    def __init__(self, client, model):
+    def __init__(self, client: "genai.Client", model: str) -> None:
         self._client = client
         self._model = model
 
-    def embed_query(self, text):
+    def embed_query(self, text: str) -> list[float]:
+        """Embed a single string and return the embedding vector."""
         result = self._client.models.embed_content(model=self._model, contents=text)
         return result.embeddings[0].values
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed a list of strings and return a list of embedding vectors."""
         result = self._client.models.embed_content(model=self._model, contents=texts)
         return [e.values for e in result.embeddings]
 
 
-def setup_embeddings(model="gemini-embedding-001"):
-    """Set up and return an embedding model with retry logic."""
-    client = _get_client()
-    print(f"Setting up embedding model: {model}")
+def setup_embeddings(model: str = "gemini-embedding-001") -> _EmbeddingModel:
+    """Set up and return an embedding model with retry logic.
 
-    retries, delay = 3, 2
+    Parameters
+    ----------
+    model:
+        The Gemini embedding model ID to use.
+
+    Returns
+    -------
+    _EmbeddingModel
+        A ready-to-use embedding wrapper.
+
+    Raises
+    ------
+    ValueError
+        If the embedding model fails to initialise after all retries.
+    """
+    client = _get_client()
+    logger.info("Setting up embedding model: %s", model)
+
+    retries, delay = EMBEDDING_RETRIES, EMBEDDING_RETRY_DELAY
     for attempt in range(retries):
         try:
             wrapper = _EmbeddingModel(client, model)
             wrapper.embed_query("test")
-            print(f"Embedding model ready: {model}")
+            logger.info("Embedding model ready: %s", model)
             return wrapper
         except Exception as e:
-            print(f"Attempt {attempt+1}/{retries} failed: {e}")
+            logger.warning("Embedding init attempt %d/%d failed: %s", attempt + 1, retries, e)
             if attempt < retries - 1:
                 time.sleep(delay)
                 delay *= 2
