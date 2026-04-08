@@ -34,6 +34,17 @@ from prompts import (
 
 from rag_retrieval import retrieve_and_generate
 
+from config import (
+    DEFAULT_MODEL,
+    DEFAULT_CRITIC_MODEL,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_WRITER_TEMPERATURE,
+    DEFAULT_WRITER_TOP_P,
+    DEFAULT_MAX_ITERATIONS,
+    MAX_USER_INPUT_CHARS,
+    QUEUE_TIMEOUT,
+)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET_KEY") or os.urandom(24)
 
@@ -52,7 +63,14 @@ _generation_results: dict[str, dict] = {}
 _personas_cache = None
 
 def _get_personas() -> dict:
-    """Load personas JSON once and cache for the process lifetime."""
+    """Load personas JSON once and cache for the process lifetime.
+
+    Returns
+    -------
+    dict
+        Mapping of persona name → persona description string.
+        Returns an empty dict if the file cannot be loaded.
+    """
     global _personas_cache
     if _personas_cache is None:
         try:
@@ -64,8 +82,15 @@ def _get_personas() -> dict:
     return _personas_cache
 
 def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
-    """Parse set/rep/RPE form data into a feedback_data dict.
+    """Parse raw form POST data into a structured feedback dict.
 
+    Returns
+    -------
+    dict
+        ``{day: [{"exercise": str, "feedback": str}]}`` mapping.
+
+    Notes
+    -----
     key_prefix is prepended to the day key, e.g. pass "{week}_" for next_week.
     """
     feedback_data = {}
@@ -97,18 +122,18 @@ def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
     return feedback_data
 
 DEFAULT_CONFIG = {
-    'model': 'gemini-3-flash-preview',        # Writer & Editor
-    'critic_model': 'gemini-3-flash-preview', # Critic — 5 parallel tasks
-    'max_tokens': 8000,
-    'writer_temperature': 0.4,
-    'writer_top_p': 0.9,
+    'model': DEFAULT_MODEL,
+    'critic_model': DEFAULT_CRITIC_MODEL,
+    'max_tokens': DEFAULT_MAX_TOKENS,
+    'writer_temperature': DEFAULT_WRITER_TEMPERATURE,
+    'writer_top_p': DEFAULT_WRITER_TOP_P,
     'writer_prompt_settings': 'v1',
     'critic_prompt_settings': 'week1',
-    'max_iterations': 1,
+    'max_iterations': DEFAULT_MAX_ITERATIONS,
     'thinking_budget': None,                  # Set to e.g. 5000 if model supports ThinkingConfig
 }
 
-def get_program_generator(config=None):
+def get_program_generator(config: dict | None = None) -> "ProgramGenerator":
     """Build a ProgramGenerator from the given (or default) config."""
     if config is None:
         config = DEFAULT_CONFIG
@@ -238,10 +263,20 @@ def generate_program():
     if request.method == 'POST':
         user_input = request.form.get('user_input', '').strip()
         persona = request.form.get('persona', '')
-        
+
         if not user_input:
             user_input = "Generate a strength training program for the selected persona."
-        
+        elif len(user_input) > MAX_USER_INPUT_CHARS:
+            user_input = user_input[:MAX_USER_INPUT_CHARS]
+            logger.warning("/generate: user_input truncated to %d chars", MAX_USER_INPUT_CHARS)
+
+        # Validate persona against known personas
+        if persona:
+            known_personas = _get_personas()
+            if known_personas and persona not in known_personas:
+                logger.warning("/generate: unknown persona %r ignored", persona)
+                persona = ''
+
         config = DEFAULT_CONFIG.copy()
         
         program_input = user_input
@@ -298,7 +333,7 @@ def generate_stream(job_id):
             return
         while True:
             try:
-                msg = q.get(timeout=120)
+                msg = q.get(timeout=QUEUE_TIMEOUT)
                 yield f"data: {json.dumps(msg)}\n\n"
                 if msg.get("step") in ("done", "error"):
                     break
@@ -338,11 +373,25 @@ def submit_feedback():
     flash("Feedback submitted successfully!")
     return redirect(url_for('index'))
 
-def create_next_week_prompt(user_input, current_program, feedback_data, current_week, persona=None):
+def create_next_week_prompt(program: dict, feedback: dict, user_input: str = "", current_week: int = 1, persona=None) -> str:
+    """Build the user-input string for a week-N+1 program generation request.
+
+    Parameters
+    ----------
+    program:
+        The current week's formatted program dict.
+    feedback:
+        Structured feedback dict from ``_parse_feedback_form``.
+
+    Returns
+    -------
+    str
+        A prompt string ready to pass to ``ProgramGenerator.create_program``.
+    """
     prompt = f"""
     Original User Input: {user_input}
-    Previous Program: {json.dumps(current_program)}
-    User Feedback: {json.dumps(feedback_data)}
+    Previous Program: {json.dumps(program)}
+    User Feedback: {json.dumps(feedback)}
     Please generate Week {current_week + 1} program considering the feedback provided.
     Autoregulate the training loads based on the actual performance data.
     """
@@ -375,9 +424,9 @@ def next_week():
     current_program['feedback'] = feedback_data
 
     next_week_input = create_next_week_prompt(
+        program=current_program,
+        feedback=feedback_data,
         user_input=session.get('user_input', ''),
-        current_program=current_program,
-        feedback_data=feedback_data,
         current_week=current_week,
         persona=session.get('persona_data') if session.get('persona') else None
     )
