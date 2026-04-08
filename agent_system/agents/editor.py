@@ -1,10 +1,13 @@
 """
-Note: For simplicity in the report, the final implementation round is described 
+Note: For simplicity in the report, the final implementation round is described
 as occurring in the writer agent, but it actually happens here in the editor.
 """
 
 import json
+import logging
 from agent_system.utils import parse_json_draft
+
+logger = logging.getLogger(__name__)
 
 class Editor:
     def __init__(self, writer=None):
@@ -15,31 +18,60 @@ class Editor:
         if self.on_status:
             self.on_status({"step": "editor", "message": message})
 
-    def implement_final_feedback(self, program):
-        """Run one last revision pass if there's unprocessed feedback."""
+    def implement_final_feedback(self, program: dict) -> dict:
+        """Run one last revision pass if there's unprocessed feedback.
+
+        Parameters
+        ----------
+        program:
+            The LangGraph state dict. Must have 'feedback', 'draft', and
+            optionally 'week_number'.
+
+        Returns
+        -------
+        dict
+            The (possibly updated) program state.
+        """
         if not program.get('feedback') or not self.writer:
             return program
 
-        print("\n=== EDITOR: Implementing final round of feedback ===")
+        logger.info("Editor: implementing final round of feedback")
+        self._emit("Implementing final feedback round...")
         try:
             week = program.get('week_number', 1)
             override_type = "progression" if week > 1 else "revision"
-            print(f"Using {override_type} mode (Week {week})")
+            logger.info("Using %s mode (Week %d)", override_type, week)
             program['draft'] = self.writer.revise(program, override_type=override_type)
-            print("Final feedback applied")
+            logger.info("Final feedback applied successfully")
         except Exception as e:
-            print(f"Error implementing final feedback: {e}")
+            logger.exception("Error implementing final feedback")
         return program
 
 
 
-    def extract_weekly_program(self, data) -> dict:
+    def extract_weekly_program(self, data: "dict | str | None") -> dict:
         """Extract weekly_program dict from various nested/stringified formats."""
         return parse_json_draft(data)
 
-    def format_program(self, program: dict[str, str | None]) -> dict:
-        """Validate and normalize the program into a consistent format for the web app."""
+    def format_program(self, program: dict) -> dict:
+        """Validate and normalise the program into a consistent format for the web app.
+
+        Reads `program['draft']`, extracts the weekly_program structure, and
+        normalises every exercise entry to have the expected fields with defaults.
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict. Must contain a 'draft' key.
+
+        Returns
+        -------
+        dict
+            ``{"weekly_program": {day: [exercise_dicts]}}``
+        """
         weekly_program = self.extract_weekly_program(program['draft'])
+        if not weekly_program:
+            logger.warning("Editor.format_program: empty weekly_program extracted from draft")
 
         validated = {}
         for day, exercises in weekly_program.items():
