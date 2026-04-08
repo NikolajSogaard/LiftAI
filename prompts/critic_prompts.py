@@ -141,7 +141,7 @@ NOTE: Consider any changes suggested by previous critiques (frequency_and_split,
    - If volume is too high: Either reduce the number of sets for specific exercises OR completely remove certain exercises. Specify exactly which exercises to modify and from which days
    - If volume is too low: Either increase the number of sets for existing exercises OR add new exercises. Specify exactly which exercises to modify or add, with specific set/rep recommendations
    - If movement pattern balance is off: Identify which patterns are overemphasized or underemphasized, then suggest specific exercises to add, remove, or modify numbers of sets to create proper balance. Specify exactly which adjustments to make on which training days
-        - FOR POWERLIFTING or Stregth fokused goal: Ensure the main lifts are trained with sufficient volume and frequency, and that accessory work complements the main lifts without overloading them
+        - FOR POWERLIFTING or Strength focused goal: Ensure the main lifts are trained with sufficient volume and frequency, and that accessory work complements the main lifts without overloading them
         - FOR other goals: ensure the volume is balanced across all muscle groups and movement patterns are are spread evenly throughout the week
    - Ensure volume for each movement pattern is distributed appropriately across multiple training days rather than concentrated on a single day
    - IMPORTANT: 
@@ -162,16 +162,31 @@ The individual has provided these details:
 
 Focus ONLY on the REP RANGES. Do NOT comment on frequency, split structure, exercise selection, or RPE.
 
-Evaluate whether:
-- The rep ranges align with the individual's goals
-- NOTE: Consider any changes suggested by previous critiques (frequency_and_split, exercise_selection, set_volume) when evaluating rep ranges
-- Make sure your rep range recommendations work with the training split exercise selection, and volume recommendations
+Evaluate whether the rep ranges align with the individual's PRIMARY GOAL. Use the goal-specific guidelines below.
 
-Guidelines:
-- Evaluate if the user is a powerlifter, bodybuilder, or beginner, and adjust the rep ranges accordingly.
-- For compound exercises (like squat or deadlift), use lower rep-ranges like 1–8 reps
-- For isolation exercises, use higher rep-ranges like 8-15 reps
-- Do not include AMRAP (As Many Reps As Possible)
+GOAL-SPECIFIC REP RANGE GUIDELINES:
+
+For HYPERTROPHY / BODYBUILDING goals:
+- Compound movements (squat, deadlift, press, row): 5-12 reps is the ideal range. Both 6-8 and 8-12 are appropriate.
+- Isolation exercises (curls, flies, raises, extensions): 8-20 reps. Higher reps (12-20) are fine for cables and machines.
+- Do NOT push hypertrophy compounds down to powerlifting-style rep ranges (1-5).
+
+For STRENGTH / POWERLIFTING goals:
+- Main lifts (squat, bench, deadlift and close variants): 1-6 reps. Accessories in 4-8 range.
+- Isolation accessory work: 8-12 reps.
+
+For GENERAL FITNESS / BEGINNER goals:
+- Compounds: 8-15 reps.
+- Isolation: 10-20 reps.
+
+For MIXED (strength + hypertrophy) goals:
+- Main lifts: 4-8 reps.
+- Secondary compounds: 6-12 reps.
+- Isolation: 10-15 reps.
+
+Additional rules:
+- Do not include AMRAP (As Many Reps As Possible).
+- NOTE: Consider any changes suggested by previous critiques (frequency_and_split, exercise_selection, set_volume) when evaluating rep ranges.
 
 IMPORTANT: If changes are needed, provide SPECIFIC, CONCRETE suggestions - specify exact rep ranges for each exercise that needs adjustment.
 If nothing needs improvement, return "None".

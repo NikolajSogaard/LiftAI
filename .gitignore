@@ -5,6 +5,10 @@ Data/*
 cre.env
 agent_system/setup_api.py
 .conda
+.vscode/
+.claude/worktrees/
+.claude/settings.local.json
+requirements_full.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

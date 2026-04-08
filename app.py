@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response, copy_current_request_context
 from flask_session import Session
 import json
+import logging
 import os
 import argparse
 import tempfile
@@ -9,9 +10,16 @@ import uuid
 import threading
 import queue
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 from agent_system import (
     setup_llm,
     ProgramGenerator,
+    ProgramChatbot,
     Writer,
     Critic,
     Editor,
@@ -26,8 +34,19 @@ from prompts import (
 
 from rag_retrieval import retrieve_and_generate
 
+from config import (
+    DEFAULT_MODEL,
+    DEFAULT_CRITIC_MODEL,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_WRITER_TEMPERATURE,
+    DEFAULT_WRITER_TOP_P,
+    DEFAULT_MAX_ITERATIONS,
+    MAX_USER_INPUT_CHARS,
+    QUEUE_TIMEOUT,
+)
+
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("SESSION_SECRET_KEY") or os.urandom(24)
 
 # Configure server-side sessions
 app.config["SESSION_TYPE"] = "filesystem"
@@ -41,17 +60,80 @@ Session(app) # initialize session management
 _generation_queues: dict[str, queue.Queue] = {}
 _generation_results: dict[str, dict] = {}
 
+_personas_cache = None
+
+def _get_personas() -> dict:
+    """Load personas JSON once and cache for the process lifetime.
+
+    Returns
+    -------
+    dict
+        Mapping of persona name → persona description string.
+        Returns an empty dict if the file cannot be loaded.
+    """
+    global _personas_cache
+    if _personas_cache is None:
+        try:
+            with open('Data/personas/personas_vers2.json') as f:
+                _personas_cache = json.load(f)["Personas"]
+        except Exception:
+            logger.warning("Failed to load personas file", exc_info=True)
+            _personas_cache = {}
+    return _personas_cache
+
+def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
+    """Parse raw form POST data into a structured feedback dict.
+
+    Returns
+    -------
+    dict
+        ``{day: [{"exercise": str, "feedback": str}]}`` mapping.
+
+    Notes
+    -----
+    key_prefix is prepended to the day key, e.g. pass "{week}_" for next_week.
+    """
+    feedback_data = {}
+    for day, exercises in program.items():
+        day_key = day.replace(' ', '')
+        prefix = f"{key_prefix}{day_key}" if key_prefix else day_key
+        feedback_data[day] = []
+        for i, exercise in enumerate(exercises):
+            exercise_feedback = {
+                'name': exercise['name'],
+                'sets_data': [],
+                'overall_feedback': form.get(f"{prefix}_ex{i}_feedback", "")
+            }
+            for j in range(exercise.get('sets', 0)):
+                exercise_feedback['sets_data'].append({
+                    'weight': form.get(f"{prefix}_ex{i}_set{j}_weight"),
+                    'reps': form.get(f"{prefix}_ex{i}_set{j}_reps"),
+                    'actual_rpe': form.get(f"{prefix}_ex{i}_set{j}_actual_rpe")
+                })
+                # Superset A2 fields (only present when exercise is a superset)
+                a2_weight = form.get(f"{prefix}_ex{i}_a2set{j}_weight")
+                if a2_weight is not None:
+                    exercise_feedback.setdefault('a2_sets_data', []).append({
+                        'weight': a2_weight,
+                        'reps': form.get(f"{prefix}_ex{i}_a2set{j}_reps"),
+                        'actual_rpe': form.get(f"{prefix}_ex{i}_a2set{j}_actual_rpe")
+                    })
+            feedback_data[day].append(exercise_feedback)
+    return feedback_data
+
 DEFAULT_CONFIG = {
-    'model': 'gemini-2.5-pro',
-    'max_tokens': 8000,
-    'writer_temperature': 0.4,
-    'writer_top_p': 0.9,
+    'model': DEFAULT_MODEL,
+    'critic_model': DEFAULT_CRITIC_MODEL,
+    'max_tokens': DEFAULT_MAX_TOKENS,
+    'writer_temperature': DEFAULT_WRITER_TEMPERATURE,
+    'writer_top_p': DEFAULT_WRITER_TOP_P,
     'writer_prompt_settings': 'v1',
     'critic_prompt_settings': 'week1',
-    'max_iterations': 1
+    'max_iterations': DEFAULT_MAX_ITERATIONS,
+    'thinking_budget': None,                  # Set to e.g. 5000 if model supports ThinkingConfig
 }
 
-def get_program_generator(config=None):
+def get_program_generator(config: dict | None = None) -> "ProgramGenerator":
     """Build a ProgramGenerator from the given (or default) config."""
     if config is None:
         config = DEFAULT_CONFIG
@@ -76,9 +158,10 @@ def get_program_generator(config=None):
         respond_as_json=True,
         temperature=config['writer_temperature'],
         top_p=config['writer_top_p'],
+        thinking_budget=config.get('thinking_budget'),
     )
     llm_critic = setup_llm(
-        model=config['model'],
+        model=config.get('critic_model', config['model']),
         max_tokens=config['max_tokens'],
         respond_as_json=False,
     )
@@ -163,7 +246,7 @@ def parse_program(program_output):
                            "cues": "Please try generating a new program."}]}
 
     except Exception as e:
-        print(f"Error parsing program: {e}")
+        logger.exception("Error parsing program")
         return {"Day 1": [{"name": "Error parsing program", "sets": 0, "reps": "0",
                            "target_rpe": 0, "rest": "N/A", "cues": str(e)}]}
 
@@ -180,22 +263,27 @@ def generate_program():
     if request.method == 'POST':
         user_input = request.form.get('user_input', '').strip()
         persona = request.form.get('persona', '')
-        
+
         if not user_input:
             user_input = "Generate a strength training program for the selected persona."
-        
+        elif len(user_input) > MAX_USER_INPUT_CHARS:
+            user_input = user_input[:MAX_USER_INPUT_CHARS]
+            logger.warning("/generate: user_input truncated to %d chars", MAX_USER_INPUT_CHARS)
+
+        # Validate persona against known personas
+        if persona:
+            known_personas = _get_personas()
+            if known_personas and persona not in known_personas:
+                logger.warning("/generate: unknown persona %r ignored", persona)
+                persona = ''
+
         config = DEFAULT_CONFIG.copy()
         
         program_input = user_input
         if persona:
-            try:
-                with open('Data/personas/personas_vers2.json') as f:
-                    personas = json.load(f)["Personas"]
-                selected = personas.get(persona)
-                if selected:
-                    program_input = f"{user_input}\nTarget Persona: {selected}"
-            except Exception as e:
-                flash(f"Error loading persona: {e}")
+            selected = _get_personas().get(persona)
+            if selected:
+                program_input = f"{user_input}\nTarget Persona: {selected}"
         
         # Create a job id and queue for SSE streaming
         job_id = uuid.uuid4().hex[:12]
@@ -223,6 +311,7 @@ def generate_program():
                 
                 q.put({"step": "done", "message": "Program generated successfully!", "job_id": job_id})
             except Exception as e:
+                logger.exception("Program generation failed")
                 q.put({"step": "error", "message": str(e)})
             finally:
                 _generation_queues.pop(job_id, None)
@@ -244,7 +333,7 @@ def generate_stream(job_id):
             return
         while True:
             try:
-                msg = q.get(timeout=120)
+                msg = q.get(timeout=QUEUE_TIMEOUT)
                 yield f"data: {json.dumps(msg)}\n\n"
                 if msg.get("step") in ("done", "error"):
                     break
@@ -278,38 +367,31 @@ def submit_feedback():
     if 'program' not in session:
         flash("No active program to provide feedback for.")
         return redirect(url_for('index'))
-    feedback_data = {}
     program = session.get('program', {})
-
-    for day, exercises in program.items():
-        day_key = day.replace(' ', '')
-        feedback_data[day] = []
-
-        for i, exercise in enumerate(exercises):
-            exercise_feedback = {
-                'name': exercise['name'],
-                'sets_data': [],
-                'overall_feedback': request.form.get(f"{day_key}_ex{i}_feedback", "")
-            }
-            for j in range(exercise.get('sets', 0)):
-                set_data = {
-                    'weight': request.form.get(f"{day_key}_ex{i}_set{j}_weight"),
-                    'reps': request.form.get(f"{day_key}_ex{i}_set{j}_reps"),
-                    'actual_rpe': request.form.get(f"{day_key}_ex{i}_set{j}_actual_rpe")
-                }
-                exercise_feedback['sets_data'].append(set_data)
-
-            feedback_data[day].append(exercise_feedback)
-
+    feedback_data = _parse_feedback_form(program, request.form)
     session['feedback'] = feedback_data
     flash("Feedback submitted successfully!")
     return redirect(url_for('index'))
 
-def create_next_week_prompt(user_input, current_program, feedback_data, current_week, persona=None):
+def create_next_week_prompt(program: dict, feedback: dict, user_input: str = "", current_week: int = 1, persona=None) -> str:
+    """Build the user-input string for a week-N+1 program generation request.
+
+    Parameters
+    ----------
+    program:
+        The current week's formatted program dict.
+    feedback:
+        Structured feedback dict from ``_parse_feedback_form``.
+
+    Returns
+    -------
+    str
+        A prompt string ready to pass to ``ProgramGenerator.create_program``.
+    """
     prompt = f"""
     Original User Input: {user_input}
-    Previous Program: {json.dumps(current_program)}
-    User Feedback: {json.dumps(feedback_data)}
+    Previous Program: {json.dumps(program)}
+    User Feedback: {json.dumps(feedback)}
     Please generate Week {current_week + 1} program considering the feedback provided.
     Autoregulate the training loads based on the actual performance data.
     """
@@ -323,29 +405,9 @@ def next_week():
         flash("No program available to generate next week's program")
         return redirect(url_for('generate_program'))
 
-    feedback_data = {}
     program = session.get('program', {})
     current_week = session.get('current_week', 1)
-
-    for day, exercises in program.items():
-        day_key = day.replace(' ', '')
-        feedback_data[day] = []
-
-        for i, exercise in enumerate(exercises):
-            exercise_feedback = {
-                'name': exercise['name'],
-                'sets_data': [],
-                'overall_feedback': request.form.get(f"{current_week}_{day_key}_ex{i}_feedback", "")
-            }
-            for j in range(exercise.get('sets', 0)):
-                set_data = {
-                    'weight': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_weight"),
-                    'reps': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_reps"),
-                    'actual_rpe': request.form.get(f"{current_week}_{day_key}_ex{i}_set{j}_actual_rpe")
-                }
-                exercise_feedback['sets_data'].append(set_data)
-            feedback_data[day].append(exercise_feedback)
-
+    feedback_data = _parse_feedback_form(program, request.form, key_prefix=f"{current_week}_")
     session['feedback'] = feedback_data
     current_program = session['raw_program']
 
@@ -362,22 +424,17 @@ def next_week():
     current_program['feedback'] = feedback_data
 
     next_week_input = create_next_week_prompt(
+        program=current_program,
+        feedback=feedback_data,
         user_input=session.get('user_input', ''),
-        current_program=current_program,
-        feedback_data=feedback_data,
         current_week=current_week,
         persona=session.get('persona_data') if session.get('persona') else None
     )
 
     if session.get('persona'):
-        try:
-            with open('Data/personas/personas_vers2.json') as f:
-                personas = json.load(f)["Personas"]
-            selected_persona = personas.get(session['persona'])
-            if selected_persona:
-                next_week_input += f"\nTarget Persona: {selected_persona}"
-        except Exception as e:
-            flash(f"Error loading persona: {e}")
+        selected_persona = _get_personas().get(session['persona'])
+        if selected_persona:
+            next_week_input += f"\nTarget Persona: {selected_persona}"
 
     new_week = current_week + 1
     config = DEFAULT_CONFIG.copy()
@@ -420,6 +477,7 @@ def next_week():
 # Ensure SavedPrograms directory exists
 SAVED_PROGRAMS_DIR = os.path.join('Data', 'SavedPrograms')
 os.makedirs(SAVED_PROGRAMS_DIR, exist_ok=True)
+_SAFE_PROGRAMS_DIR = os.path.realpath(SAVED_PROGRAMS_DIR)
 
 @app.route('/save_program', methods=['POST'])
 def save_program():
@@ -470,7 +528,7 @@ def list_saved_programs():
                         'current_week': data.get('current_week', 1)
                     })
             except Exception as e:
-                print(f"Error reading {fname}: {e}")
+                logger.warning("Error reading saved program %s: %s", fname, e)
         programs.sort(key=lambda x: x.get('date', ''), reverse=True)
         return jsonify({'success': True, 'programs': programs})
     except Exception as e:
@@ -482,8 +540,11 @@ def load_program():
         filename = request.form.get('filename')
         if not filename:
             return jsonify({'success': False, 'message': 'No program selected'})
-        
-        filepath = os.path.join(SAVED_PROGRAMS_DIR, filename)
+
+        filepath = os.path.realpath(os.path.join(SAVED_PROGRAMS_DIR, filename))
+        if not filepath.startswith(_SAFE_PROGRAMS_DIR + os.sep):
+            return jsonify({'success': False, 'message': 'Invalid filename'})
+
         if not os.path.exists(filepath):
             return jsonify({'success': False, 'message': 'Program file not found'})
         
@@ -502,6 +563,53 @@ def load_program():
         return jsonify({'success': True, 'redirect': url_for('index')})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error loading program: {e}'})
+
+_chatbot: ProgramChatbot | None = None
+
+def _get_chatbot() -> ProgramChatbot:
+    global _chatbot
+    if _chatbot is None:
+        from agent_system.setup_api import _get_client
+        client = _get_client()
+        _chatbot = ProgramChatbot(model_name=DEFAULT_CONFIG['model'], client=client)
+    return _chatbot
+
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    if 'program' not in session:
+        return jsonify({'error': 'No active program. Generate a program first.'}), 400
+
+    data = request.get_json(silent=True) or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Empty message.'}), 400
+
+    # Frontend sends back the current (possibly already edited) program
+    program = data.get('program') or session.get('program', {})
+    history = data.get('history', [])
+
+    try:
+        chatbot = _get_chatbot()
+        result = chatbot.chat(message=message, program=program, history=history)
+    except Exception as e:
+        logger.exception("Chat request failed")
+        return jsonify({'error': str(e)}), 500
+
+    # Persist any edits back to the session
+    if result.get('updated_program'):
+        session['program'] = result['updated_program']
+        # Keep all_programs in sync — update the current week entry
+        all_programs = session.get('all_programs', [])
+        current_week = session.get('current_week', 1)
+        for wp in all_programs:
+            if wp.get('week') == current_week:
+                wp['program'] = result['updated_program']
+                break
+        session['all_programs'] = all_programs
+
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)

@@ -3,731 +3,1107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LiftAI - Generate Program</title>
+  <title>LiftAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #232636;
-      --border: #2e3244;
-      --text: #e2e4ea;
-      --muted: #8b8fa3;
-      --accent: #6c63ff;
-      --accent-dim: #4a4494;
-      --green: #34d399;
-      --red: #f87171;
-      --orange: #fbbf24;
+      --bg:          #0D0D0D;
+      --surface:     #141414;
+      --surface2:    #1A1A1A;
+      --surface3:    #222222;
+      --border:      #2A2A2A;
+      --border-mid:  #333333;
+      --text:        #F5F5F0;
+      --text-muted:  #888884;
+      --text-dim:    #555552;
+      --orange:      #FF6B2B;
+      --orange-dim:  rgba(255, 107, 43, 0.12);
+      --orange-glow: rgba(255, 107, 43, 0.25);
+      --green:       #4ADE80;
+      --green-dim:   rgba(74, 222, 128, 0.10);
+      --red:         #F87171;
+      --red-dim:     rgba(248, 113, 113, 0.10);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      opacity: 0;
     }
+    body.loaded { opacity: 1; transition: opacity 0.18s ease; }
 
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 32px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      letter-spacing: 1px;
-      color: #ffffff;
-    }
-
-    .header-nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 0.85rem;
-      transition: color 0.2s;
-    }
-    .header-nav a:hover { color: var(--text); }
-
+    /* ── Main layout ── */
     .main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      max-width: 900px;
+      max-width: 680px;
       width: 100%;
       margin: 0 auto;
-      padding: 40px 24px 24px;
+      padding: 56px 20px 80px;
     }
 
-    .welcome { text-align: center; margin-bottom: 40px; }
-
-    .welcome h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-      color: var(--text);
-    }
-
-    .welcome p { color: var(--muted); font-size: 0.95rem; }
-
-    /* Chat area */
-    .chat-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 24px;
-      min-height: 200px;
-    }
-
-    .chat-bubble {
-      max-width: 80%;
-      padding: 14px 18px;
-      border-radius: 16px;
-      font-size: 0.9rem;
-      line-height: 1.5;
-      animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .bubble-user {
-      align-self: flex-end;
-      background: var(--accent);
-      color: #fff;
-      border-bottom-right-radius: 4px;
-    }
-
-    .bubble-ai {
-      align-self: flex-start;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
-    }
-
-    .bubble-ai .step-label {
-      font-weight: 600;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-
-    .bubble-ai .step-label.error  { color: var(--red); }
-
-    /* Thinking container */
-    .thinking-container {
-      align-self: flex-start;
-      max-width: 85%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      overflow: hidden;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .thinking-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 18px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      color: var(--accent);
-      cursor: pointer;
-      user-select: none;
-      transition: color 0.2s;
-    }
-
-    .thinking-header:hover { color: var(--text); }
-
-    .thinking-header .chevron {
-      font-size: 0.7rem;
-      transition: transform 0.2s;
-      color: var(--muted);
-    }
-
-    .thinking-done .thinking-header .chevron {
-      transform: rotate(-90deg);
-    }
-
-    .thinking-done.expanded .thinking-header .chevron {
-      transform: rotate(0deg);
-    }
-
-    .thinking-dots {
-      display: inline-flex;
-      gap: 4px;
-      margin-left: auto;
-    }
-
-    .thinking-dots span {
-      width: 6px; height: 6px;
-      background: var(--muted);
-      border-radius: 50%;
-      animation: blink 1.4s infinite both;
-    }
-    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes blink {
-      0%, 80%, 100% { opacity: 0.2; }
-      40% { opacity: 1; }
-    }
-
-    .thinking-lines {
-      padding: 0 18px 14px;
-      max-height: 500px;
-      overflow-y: auto;
-      transition: max-height 0.3s ease, padding 0.3s ease;
-    }
-
-    .thinking-lines::-webkit-scrollbar { width: 5px; }
-    .thinking-lines::-webkit-scrollbar-track { background: transparent; }
-    .thinking-lines::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-    .thinking-done .thinking-lines {
-      max-height: 0;
-      padding: 0 18px;
-      overflow: hidden;
-    }
-
-    .thinking-done.expanded .thinking-lines {
-      max-height: 500px;
-      padding: 0 18px 14px;
-    }
-
-    .thinking-line {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 5px 0;
-      font-size: 0.8rem;
-      color: var(--muted);
-      animation: fadeIn 0.25s ease;
-    }
-
-    .thinking-line .step-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .step-dot.writer { background: var(--accent); }
-    .step-dot.critic { background: var(--orange); }
-    .step-dot.editor { background: var(--green); }
-
-    .thinking-line .check {
-      color: var(--green);
-      font-size: 0.75rem;
-      flex-shrink: 0;
-      width: 8px;
+    /* ── Logo block ── */
+    .logo-block {
       text-align: center;
+      margin-bottom: 44px;
+      opacity: 0;
+    }
+    body.loaded .logo-block {
+      animation: slideDown 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
     }
 
-    .thinking-line.detail {
-      padding-left: 22px;
-      font-size: 0.75rem;
-      color: #6b7089;
-      font-style: italic;
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 4px;
+    .logo-lockup {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 4.2rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .logo-lift { color: var(--text); }
+    .logo-ai   { color: var(--orange); }
+
+    .logo-rule {
+      width: 48px;
+      height: 3px;
+      background: var(--orange);
+      margin: 12px auto 11px;
     }
 
-    .thinking-line.detail .detail-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
+    .logo-sub {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 3.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
     }
 
-    .thinking-line.detail .detail-header:hover {
-      color: var(--muted);
-    }
-
-    .thinking-line.detail .detail-toggle {
-      font-size: 0.6rem;
-      transition: transform 0.2s;
-      color: #555;
-    }
-
-    .thinking-line.detail .detail-toggle.open {
-      transform: rotate(90deg);
-    }
-
-    .thinking-line.detail .detail-body {
+    /* ── Progress panel ── */
+    .progress-panel {
       display: none;
-      margin-left: 16px;
-      padding: 6px 10px;
+      animation: fadeUp 0.35s ease;
+      margin-bottom: 28px;
+    }
+    .progress-panel.visible { display: block; }
+
+    .gen-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .gen-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .gen-counter {
+      font-family: 'DM Mono', monospace;
+      font-size: 1.9rem;
+      font-weight: 500;
+      color: var(--orange);
+      line-height: 1;
+    }
+
+    .gen-bar-track {
+      height: 4px;
+      background: var(--surface3);
+      border-radius: 2px;
+      margin-bottom: 28px;
+      overflow: hidden;
+      position: relative;
+    }
+    .gen-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--orange), #FF9060);
+      border-radius: 2px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .gen-bar-scan {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 80px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: barScan 1.8s linear infinite;
+      display: none;
+    }
+    .progress-panel.visible .gen-bar-scan { display: block; }
+
+    @keyframes barScan {
+      from { left: -80px; }
+      to   { left: 100%; }
+    }
+
+    /* Steps */
+    .progress-steps { display: flex; flex-direction: column; }
+
+    .step-item {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      grid-template-rows: auto auto;
+      column-gap: 14px;
+      align-items: center;
+    }
+
+    .step-icon {
+      grid-row: 1 / 3;
+      width: 48px; height: 48px;
+      border-radius: 6px;
+      border: 1px solid var(--border-mid);
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .step-item.active .step-icon {
+      border-color: var(--orange);
+      background: var(--orange-dim);
+      animation: stepPulse 2s ease-out infinite;
+    }
+    .step-item.done .step-icon {
+      border-color: var(--green);
+      background: var(--green-dim);
+      animation: stepDoneFlash 0.45s ease both;
+    }
+
+    @keyframes stepPulse {
+      0%   { box-shadow: 0 0 0 0 var(--orange-glow); }
+      60%  { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes stepDoneFlash {
+      0%   { background: rgba(74,222,128,0.4); }
+      100% { background: var(--green-dim); }
+    }
+
+    .icon-pending { width: 10px; height: 10px; border-radius: 2px; background: var(--border-mid); }
+    .icon-active  { display: none; }
+    .icon-done    { display: none; color: var(--green); font-size: 1.1rem; font-weight: 700; }
+
+    .step-item.active .icon-pending { display: none; }
+    .step-item.active .icon-active  { display: flex; }
+    .step-item.done   .icon-pending { display: none; }
+    .step-item.done   .icon-done    { display: flex; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--orange-dim);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    .step-info { grid-column: 2; grid-row: 1; }
+
+    .step-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+    .step-item.active .step-label { color: var(--text); }
+    .step-item.done   .step-label { color: var(--green); }
+
+    .step-desc {
+      font-size: 0.73rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .step-time {
+      grid-column: 3; grid-row: 1;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      min-width: 32px;
+      text-align: right;
+    }
+    .step-item.active .step-time { color: var(--orange); }
+    .step-item.done   .step-time { color: var(--green); }
+
+    .step-details {
+      grid-column: 2 / 4;
+      grid-row: 2;
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .step-connector {
+      width: 2px; height: 20px;
+      background: var(--border);
+      margin: 4px 0 4px 23px;
+      transition: background 0.4s;
+    }
+    .step-item.done + .step-connector { background: rgba(74,222,128,0.35); }
+
+    .detail-line {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      padding: 2px 0 2px 10px;
+      border-left: 2px solid var(--border);
+      line-height: 1.55;
+    }
+    .detail-line.expandable { cursor: pointer; }
+    .detail-line.expandable:hover { color: var(--text-muted); border-left-color: rgba(255,107,43,0.3); }
+    .detail-expand-body {
+      display: none;
+      margin-top: 4px; padding: 6px 10px;
       background: rgba(255,255,255,0.02);
       border-left: 2px solid var(--border);
-      border-radius: 0 6px 6px 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.5;
-      max-height: 200px;
-      overflow-y: auto;
-      font-style: normal;
-      color: #7a7f99;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.69rem; color: var(--text-dim);
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 140px; overflow-y: auto;
     }
+    .detail-expand-body.open { display: block; }
 
-    .thinking-line.detail .detail-body.open {
-      display: block;
+    /* ── Error card ── */
+    .error-card {
+      display: none;
+      background: var(--red-dim);
+      border: 1px solid rgba(248,113,113,0.28);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      align-items: center;
+      gap: 14px;
     }
-
-    .thinking-line.detail .detail-body::-webkit-scrollbar { width: 4px; }
-    .thinking-line.detail .detail-body::-webkit-scrollbar-track { background: transparent; }
-    .thinking-line.detail .detail-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    .thinking-line.detail .step-dot {
-      width: 5px;
-      height: 5px;
-      opacity: 0.5;
+    .error-card.visible { display: flex; }
+    .error-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .error-body { flex: 1; }
+    .error-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--red);
+      margin-bottom: 3px;
     }
+    .error-msg { font-size: 0.78rem; color: var(--text-muted); }
+    .btn-retry {
+      background: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-retry:hover { background: var(--red-dim); }
 
-    /* Input area */
-    .input-area {
+    /* ── Form card ── */
+    .form-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 10px;
+      overflow: hidden;
+      opacity: 0;
+    }
+    body.loaded .form-card {
+      animation: slideDown 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.14s both;
     }
 
-    .input-area textarea {
-      width: 100%;
-      min-height: 100px;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text);
-      font-family: inherit;
+    .form-section { padding: 22px 24px; border-bottom: 1px solid var(--border); }
+    .form-section:last-child { border-bottom: none; }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .section-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2.5px;
+      color: var(--orange);
+    }
+    .section-number {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+    }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .form-group { display: flex; flex-direction: column; gap: 7px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.67rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+
+    /* Square token groups */
+    .pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill-group input[type="radio"],
+    .pill-group input[type="checkbox"] { display: none; }
+    .pill-group label {
+      padding: 6px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border-mid);
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .pill-group label:hover { border-color: var(--orange); color: var(--text); }
+    .pill-group input:checked + label {
+      background: var(--orange-dim);
+      border-color: var(--orange);
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    /* Days per week stepper */
+    .stepper-group { display: flex; gap: 5px; }
+    .stepper-group input[type="radio"] { display: none; }
+    .stepper-group label {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 4px;
+      border: 1px solid var(--border-mid);
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-family: 'DM Mono', monospace;
       font-size: 0.9rem;
-      resize: vertical;
-      line-height: 1.5;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .stepper-group label:hover { border-color: var(--orange); color: var(--text); }
+    .stepper-group input:checked + label {
+      background: var(--orange);
+      border-color: var(--orange);
+      color: #fff;
     }
 
-    .input-area textarea::placeholder { color: var(--muted); }
+    /* Text inputs */
+    .form-input {
+      width: 100%;
+      padding: 9px 13px;
+      border: 1px solid var(--border-mid);
+      border-radius: 6px;
+      background: var(--surface2);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--orange); }
+    .form-input::placeholder { color: var(--text-dim); }
+    textarea.form-input { resize: vertical; min-height: 64px; line-height: 1.5; }
 
-    .input-controls {
+    /* Form footer */
+    .form-footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 12px;
-      padding-top: 12px;
+      padding: 16px 24px;
       border-top: 1px solid var(--border);
-    }
-
-    .persona-select {
       background: var(--surface2);
-      border: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .persona-wrapper { display: flex; align-items: center; gap: 8px; }
+    .persona-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.64rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .persona-select {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
       color: var(--text);
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
+      padding: 7px 11px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-family: 'DM Sans', sans-serif;
       outline: none;
       cursor: pointer;
     }
+    .persona-select:focus { border-color: var(--orange); }
 
     .btn-generate {
-      background: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--orange);
       color: #fff;
       border: none;
-      padding: 10px 24px;
-      border-radius: 10px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      padding: 12px 26px;
+      border-radius: 6px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
     }
-    .btn-generate:hover { background: #5a52e0; }
+    .btn-generate:hover {
+      background: #e85c20;
+      box-shadow: 0 0 22px var(--orange-glow);
+    }
     .btn-generate:active { transform: scale(0.97); }
     .btn-generate:disabled {
-      background: var(--accent-dim);
+      background: var(--surface3);
+      color: var(--text-dim);
       cursor: not-allowed;
-      opacity: 0.6;
+      box-shadow: none;
     }
+    .btn-generate svg { flex-shrink: 0; }
 
-    /* Divider & saved section */
+    /* ── Saved programs section ── */
     .divider {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin: 32px 0;
-      color: var(--muted);
-      font-size: 0.8rem;
+      gap: 14px;
+      margin: 36px 0;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.64rem;
+      font-weight: 700;
+      letter-spacing: 2.5px;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      color: var(--text-dim);
+      opacity: 0;
+    }
+    body.loaded .divider {
+      animation: slideDown 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
     }
     .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
+      content: ''; flex: 1; height: 1px; background: var(--border);
     }
 
     .saved-section {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 10px;
       padding: 20px;
+      opacity: 0;
+    }
+    body.loaded .saved-section {
+      animation: slideDown 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
     }
 
-    .saved-section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
-
-    .program-list {
-      max-height: 240px;
-      overflow-y: auto;
-      border-radius: 8px;
-      margin-bottom: 12px;
+    .saved-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
     }
-    .program-list::-webkit-scrollbar { width: 6px; }
-    .program-list::-webkit-scrollbar-track { background: transparent; }
-    .program-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .program-list { max-height: 210px; overflow-y: auto; margin-bottom: 12px; }
+    .program-list::-webkit-scrollbar { width: 3px; }
+    .program-list::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 
     .program-item {
-      padding: 12px 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
-      transition: background 0.15s;
-      border-radius: 6px;
+      transition: background 0.15s, border-left-color 0.15s;
+      border-left: 3px solid transparent;
     }
-    .program-item:hover { background: var(--surface2); }
-    .program-item.selected { background: var(--accent-dim); border-color: var(--accent); }
-    .program-item strong { font-size: 0.9rem; }
-
-    .program-details { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    .program-item:first-child { border-top: 1px solid var(--border); }
+    .program-item:hover { background: var(--surface2); border-left-color: var(--border-mid); }
+    .program-item.selected {
+      background: var(--orange-dim);
+      border-left-color: var(--orange);
+    }
+    .program-item strong {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+    }
+    .program-details {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.67rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
 
     .btn-load {
       background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border: 1px solid var(--border-mid);
       padding: 8px 18px;
-      border-radius: 8px;
+      border-radius: 4px;
+      font-family: 'Barlow Condensed', sans-serif;
       font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.15s;
     }
-    .btn-load:hover { background: var(--accent-dim); }
-    .btn-load:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-load:not(:disabled):hover {
+      background: var(--orange-dim);
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+    .btn-load:disabled { opacity: 0.35; cursor: not-allowed; }
 
     #load-message {
       margin-top: 10px;
       padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
+      border-radius: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
       display: none;
     }
+    .msg-success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,0.25); }
+    .msg-error   { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,0.25); }
+    .empty-state { text-align: center; color: var(--text-dim); padding: 24px; font-family: 'DM Mono', monospace; font-size: 0.78rem; }
 
-    .success-message { background: rgba(52,211,153,0.15); color: var(--green); }
-    .error-message { background: rgba(248,113,113,0.15); color: var(--red); }
-    .empty-state { text-align: center; color: var(--muted); padding: 24px; font-size: 0.85rem; }
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px 24px;
+      font-size: 0.71rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      font-family: 'DM Sans', sans-serif;
+      margin-top: 20px;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 540px) {
+      .main { padding: 32px 14px 60px; }
+      .logo-lockup { font-size: 3rem; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+      .form-footer { flex-direction: column; align-items: stretch; }
+      .btn-generate { width: 100%; justify-content: center; }
+    }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <div class="logo">LiftAI</div>
-    <div class="header-nav">
-      <a href="{{ url_for('index') }}">View Program</a>
+<div class="main">
+
+  <!-- Logo -->
+  <div class="logo-block" id="logo-block">
+    <div class="logo-lockup">
+      <span class="logo-lift">LIFT</span><span class="logo-ai">AI</span>
+    </div>
+    <div class="logo-rule"></div>
+    <div class="logo-sub">AI-Powered Strength Training</div>
+  </div>
+
+  <!-- Progress panel (shown while generating) -->
+  <div class="progress-panel" id="progress-panel">
+    <div class="gen-header">
+      <div class="gen-title">Generating Program</div>
+      <div class="gen-counter" id="progress-fraction">0 / 3</div>
+    </div>
+    <div class="gen-bar-track">
+      <div class="gen-bar-fill" id="progress-bar"></div>
+      <div class="gen-bar-scan"></div>
+    </div>
+    <div class="progress-steps">
+
+      <div class="step-item pending" id="step-writer">
+        <div class="step-icon">
+          <div class="icon-pending"></div>
+          <div class="icon-active"><div class="spinner"></div></div>
+          <div class="icon-done">✓</div>
+        </div>
+        <div class="step-info">
+          <div class="step-label">Writer</div>
+          <div class="step-desc">Retrieving training knowledge &amp; drafting program</div>
+        </div>
+        <div class="step-time" id="time-writer"></div>
+        <div class="step-details" id="details-writer"></div>
+      </div>
+
+      <div class="step-connector"></div>
+
+      <div class="step-item pending" id="step-critic">
+        <div class="step-icon">
+          <div class="icon-pending"></div>
+          <div class="icon-active"><div class="spinner"></div></div>
+          <div class="icon-done">✓</div>
+        </div>
+        <div class="step-info">
+          <div class="step-label">Critic</div>
+          <div class="step-desc">Evaluating quality across 5 dimensions</div>
+        </div>
+        <div class="step-time" id="time-critic"></div>
+        <div class="step-details" id="details-critic"></div>
+      </div>
+
+      <div class="step-connector"></div>
+
+      <div class="step-item pending" id="step-editor">
+        <div class="step-icon">
+          <div class="icon-pending"></div>
+          <div class="icon-active"><div class="spinner"></div></div>
+          <div class="icon-done">✓</div>
+        </div>
+        <div class="step-info">
+          <div class="step-label">Editor</div>
+          <div class="step-desc">Formatting and finalizing your program</div>
+        </div>
+        <div class="step-time" id="time-editor"></div>
+        <div class="step-details" id="details-editor"></div>
+      </div>
+
     </div>
   </div>
 
-  <div class="main">
-    <div class="welcome" id="welcome">
-      <h1>Build Your Program</h1>
-      <p>Describe your goals and LiftAI will generate a personalized strength training program.</p>
+  <!-- Error card -->
+  <div class="error-card" id="error-card">
+    <div class="error-icon">⚠️</div>
+    <div class="error-body">
+      <div class="error-title">Generation Failed</div>
+      <div class="error-msg" id="error-msg">Something went wrong. Please try again.</div>
+    </div>
+    <button class="btn-retry" id="btn-retry">Try Again</button>
+  </div>
+
+  <!-- Form -->
+  <div class="form-card" id="form-card">
+
+    <!-- 01 About You -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-label">About You</span>
+        <span class="section-number">01</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <span class="form-label">Experience Level</span>
+          <div class="pill-group">
+            <input type="radio" name="experience" id="exp-beginner" value="Beginner">
+            <label for="exp-beginner">Beginner</label>
+            <input type="radio" name="experience" id="exp-intermediate" value="Intermediate" checked>
+            <label for="exp-intermediate">Intermediate</label>
+            <input type="radio" name="experience" id="exp-advanced" value="Advanced">
+            <label for="exp-advanced">Advanced</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Primary Goal</span>
+          <div class="pill-group">
+            <input type="radio" name="goal" id="goal-strength" value="Strength">
+            <label for="goal-strength">Strength</label>
+            <input type="radio" name="goal" id="goal-hypertrophy" value="Hypertrophy" checked>
+            <label for="goal-hypertrophy">Hypertrophy</label>
+            <input type="radio" name="goal" id="goal-both" value="Strength & Hypertrophy">
+            <label for="goal-both">Both</label>
+            <input type="radio" name="goal" id="goal-general" value="General Fitness">
+            <label for="goal-general">General Fitness</label>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="chat-area" id="chat-area"></div>
+    <!-- 02 Schedule -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-label">Schedule</span>
+        <span class="section-number">02</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <span class="form-label">Days Per Week</span>
+          <div class="stepper-group">
+            <input type="radio" name="days_per_week" id="dpw-1" value="1"><label for="dpw-1">1</label>
+            <input type="radio" name="days_per_week" id="dpw-2" value="2"><label for="dpw-2">2</label>
+            <input type="radio" name="days_per_week" id="dpw-3" value="3"><label for="dpw-3">3</label>
+            <input type="radio" name="days_per_week" id="dpw-4" value="4" checked><label for="dpw-4">4</label>
+            <input type="radio" name="days_per_week" id="dpw-5" value="5"><label for="dpw-5">5</label>
+            <input type="radio" name="days_per_week" id="dpw-6" value="6"><label for="dpw-6">6</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Training Days</span>
+          <div class="pill-group">
+            <input type="checkbox" name="days" id="day-mon" value="Monday" checked><label for="day-mon">Mon</label>
+            <input type="checkbox" name="days" id="day-tue" value="Tuesday" checked><label for="day-tue">Tue</label>
+            <input type="checkbox" name="days" id="day-wed" value="Wednesday"><label for="day-wed">Wed</label>
+            <input type="checkbox" name="days" id="day-thu" value="Thursday" checked><label for="day-thu">Thu</label>
+            <input type="checkbox" name="days" id="day-fri" value="Friday" checked><label for="day-fri">Fri</label>
+            <input type="checkbox" name="days" id="day-sat" value="Saturday"><label for="day-sat">Sat</label>
+            <input type="checkbox" name="days" id="day-sun" value="Sunday"><label for="day-sun">Sun</label>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <div class="input-area" id="input-area">
-      <textarea id="user-input" placeholder="e.g. I am an intermediate lifter looking for a 4-day upper/lower hypertrophy program. I can train Mon/Tue/Thu/Fri..."></textarea>
-      <div class="input-controls">
+    <!-- 03 Equipment -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-label">Equipment</span>
+        <span class="section-number">03</span>
+      </div>
+      <div class="pill-group">
+        <input type="checkbox" name="equipment" id="eq-barbell" value="Barbell & Plates" checked><label for="eq-barbell">Barbell &amp; Plates</label>
+        <input type="checkbox" name="equipment" id="eq-dumbbells" value="Dumbbells" checked><label for="eq-dumbbells">Dumbbells</label>
+        <input type="checkbox" name="equipment" id="eq-cables" value="Cables & Machines" checked><label for="eq-cables">Cables &amp; Machines</label>
+        <input type="checkbox" name="equipment" id="eq-pullup" value="Pull-up Bar" checked><label for="eq-pullup">Pull-up Bar</label>
+        <input type="checkbox" name="equipment" id="eq-bands" value="Resistance Bands"><label for="eq-bands">Resistance Bands</label>
+        <input type="checkbox" name="equipment" id="eq-bodyweight" value="Bodyweight Only"><label for="eq-bodyweight">Bodyweight Only</label>
+      </div>
+    </div>
+
+    <!-- 04 Session Length -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-label">Session Length</span>
+        <span class="section-number">04</span>
+      </div>
+      <div class="pill-group">
+        <input type="radio" name="duration" id="dur-30" value="30"><label for="dur-30">30 min</label>
+        <input type="radio" name="duration" id="dur-45" value="45"><label for="dur-45">45 min</label>
+        <input type="radio" name="duration" id="dur-60" value="60" checked><label for="dur-60">60 min</label>
+        <input type="radio" name="duration" id="dur-75" value="75"><label for="dur-75">75 min</label>
+        <input type="radio" name="duration" id="dur-90" value="90"><label for="dur-90">90 min</label>
+        <input type="radio" name="duration" id="dur-unlimited" value="unlimited"><label for="dur-unlimited">No limit</label>
+      </div>
+    </div>
+
+    <!-- 05 Details -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-label">Details</span>
+        <span class="section-number">05</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <span class="form-label">Main Lifts <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></span>
+          <input type="text" id="main-lifts" class="form-input" placeholder="e.g. Squat, Bench Press, Deadlift">
+        </div>
+        <div class="form-group">
+          <span class="form-label">Injuries / Limitations <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></span>
+          <input type="text" id="injuries" class="form-input" placeholder="e.g. Lower back sensitivity">
+        </div>
+        <div class="form-group full">
+          <span class="form-label">Additional Notes <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></span>
+          <textarea id="extra-notes" class="form-input" placeholder="e.g. Home gym, prefer compound movements, morning sessions…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="form-footer">
+      <div class="persona-wrapper">
+        <span class="persona-label">Test Persona</span>
         <select class="persona-select" id="persona-select">
-          <option value="">No persona</option>
-          <option value="1">Persona 1</option>
-          <option value="2">Persona 2</option>
-          <option value="3">Persona 3</option>
+          <option value="">None</option>
+          <option value="1">Persona 1 — Busy Beginner</option>
+          <option value="2">Persona 2 — Bodybuilder</option>
+          <option value="3">Persona 3 — Powerlifter</option>
         </select>
-        <button class="btn-generate" id="btn-generate">Generate Program</button>
       </div>
-    </div>
-
-    <div class="divider">or load a saved program</div>
-
-    <div class="saved-section">
-      <h2>Saved Programs</h2>
-      <div id="program-list" class="program-list">
-        <div class="empty-state">Loading...</div>
-      </div>
-      <button class="btn-load" id="load-program-btn" disabled>Load Selected</button>
-      <div id="load-message"></div>
+      <button class="btn-generate" id="btn-generate">
+        Generate Program
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 7.5H12M12 7.5L8.5 4M12 7.5L8.5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
   </div>
 
-  <script>
-    var chatArea = document.getElementById('chat-area');
-    var userInput = document.getElementById('user-input');
-    var btnGenerate = document.getElementById('btn-generate');
-    var personaSelect = document.getElementById('persona-select');
-    var welcome = document.getElementById('welcome');
+  <div class="divider">or load a saved program</div>
 
-    var thinkingContainer = null;
-    var thinkingLines = null;
+  <div class="saved-section">
+    <div class="saved-title">Saved Programs</div>
+    <div id="program-list" class="program-list"><div class="empty-state">Loading…</div></div>
+    <button class="btn-load" id="load-program-btn" disabled>Load Selected</button>
+    <div id="load-message"></div>
+  </div>
 
-    function addBubble(type, stepLabel, message) {
-      var bubble = document.createElement('div');
-      bubble.className = 'chat-bubble bubble-' + type;
-      if (type === 'ai' && stepLabel) {
-        var label = document.createElement('div');
-        label.className = 'step-label ' + stepLabel;
-        label.textContent = stepLabel;
-        bubble.appendChild(label);
-      }
-      var text = document.createElement('div');
-      text.textContent = message;
-      bubble.appendChild(text);
-      chatArea.appendChild(bubble);
-      chatArea.scrollTop = chatArea.scrollHeight;
-      return bubble;
-    }
+</div>
 
-    function startThinking() {
-      thinkingContainer = document.createElement('div');
-      thinkingContainer.className = 'thinking-container';
-      thinkingContainer.id = 'thinking-container';
+<footer>LiftAI &mdash; AI-Powered Strength Training</footer>
 
-      var header = document.createElement('div');
-      header.className = 'thinking-header';
-      header.innerHTML = '<span class="chevron">&#9660;</span> Thinking';
-      var dots = document.createElement('div');
-      dots.className = 'thinking-dots';
-      dots.id = 'thinking-dots';
-      dots.innerHTML = '<span></span><span></span><span></span>';
-      header.appendChild(dots);
-      thinkingContainer.appendChild(header);
+<script>
+  var STEP_NAMES = ['writer', 'critic', 'editor'];
+  var stepStartTimes = {};
+  var stepTimers     = {};
+  var currentStep    = null;
+  var doneCount      = 0;
 
-      thinkingLines = document.createElement('div');
-      thinkingLines.className = 'thinking-lines';
-      thinkingContainer.appendChild(thinkingLines);
+  function _updateProgressBar() {
+    var pct = Math.round((doneCount / STEP_NAMES.length) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-fraction').textContent = doneCount + ' / ' + STEP_NAMES.length;
+  }
 
-      chatArea.appendChild(thinkingContainer);
-      chatArea.scrollTop = chatArea.scrollHeight;
-    }
+  function showProgressPanel() {
+    document.getElementById('logo-block').style.display = 'none';
+    document.getElementById('form-card').style.display  = 'none';
+    document.getElementById('progress-panel').classList.add('visible');
+    doneCount = 0;
+    _updateProgressBar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
-    function addThinkingLine(step, message, isDetail) {
-      if (!thinkingLines) return;
-      var line = document.createElement('div');
-      line.className = 'thinking-line' + (isDetail ? ' detail' : '');
+  function activateStep(step) {
+    if (currentStep === step) return;
+    if (currentStep) _finishStep(currentStep);
+    currentStep = step;
+    var el = document.getElementById('step-' + step);
+    el.classList.remove('pending');
+    el.classList.add('active');
+    stepStartTimes[step] = Date.now();
+    stepTimers[step] = setInterval(function() {
+      var el = document.getElementById('time-' + step);
+      if (el) el.textContent = Math.round((Date.now() - stepStartTimes[step]) / 1000) + 's';
+    }, 1000);
+  }
 
-      if (isDetail && message.indexOf('\n') !== -1) {
-        var parts = message.split('\n');
-        var title = parts[0];
-        var body = parts.slice(1).join('\n').trim();
+  function _finishStep(step) {
+    clearInterval(stepTimers[step]);
+    var el = document.getElementById('step-' + step);
+    if (!el) return;
+    el.classList.remove('active');
+    el.classList.add('done');
+    var t = document.getElementById('time-' + step);
+    if (t) t.textContent = Math.round((Date.now() - stepStartTimes[step]) / 1000) + 's';
+    doneCount++;
+    _updateProgressBar();
+  }
 
-        var header = document.createElement('div');
-        header.className = 'detail-header';
-        header.innerHTML = '<span class="step-dot ' + step + '"></span>' +
-          '<span class="detail-toggle">&#9654;</span> ' + escapeHtml(title);
+  function completeAll() {
+    if (currentStep) _finishStep(currentStep);
+  }
 
+  function addDetail(step, message, isExpandable) {
+    var container = document.getElementById('details-' + step);
+    if (!container) return;
+    var line = document.createElement('div');
+    line.className = 'detail-line';
+    if (isExpandable && message.indexOf('\n') !== -1) {
+      var parts = message.split('\n');
+      var title = parts[0].trim();
+      var body  = parts.slice(1).join('\n').trim();
+      line.classList.add('expandable');
+      line.textContent = title + ' ▾';
+      if (body) {
         var bodyEl = document.createElement('div');
-        bodyEl.className = 'detail-body';
+        bodyEl.className = 'detail-expand-body';
         bodyEl.textContent = body;
-
-        header.addEventListener('click', function() {
-          var tog = header.querySelector('.detail-toggle');
-          tog.classList.toggle('open');
-          bodyEl.classList.toggle('open');
-          chatArea.scrollTop = chatArea.scrollHeight;
-        });
-
-        line.appendChild(header);
         line.appendChild(bodyEl);
-      } else {
-        line.innerHTML = '<span class="step-dot ' + step + '"></span>' + escapeHtml(message);
+        line.addEventListener('click', function() { bodyEl.classList.toggle('open'); });
       }
+    } else {
+      line.textContent = message;
+    }
+    container.appendChild(line);
+  }
 
-      thinkingLines.appendChild(line);
-      chatArea.scrollTop = chatArea.scrollHeight;
+  function showError(message) {
+    completeAll();
+    document.getElementById('error-card').classList.add('visible');
+    document.getElementById('error-msg').textContent = message || 'Something went wrong.';
+  }
+
+  function buildUserInput() {
+    var exp   = document.querySelector('input[name="experience"]:checked');
+    var goal  = document.querySelector('input[name="goal"]:checked');
+    var dpw   = document.querySelector('input[name="days_per_week"]:checked');
+    var days  = Array.from(document.querySelectorAll('input[name="days"]:checked')).map(function(e){ return e.value; });
+    var equip = Array.from(document.querySelectorAll('input[name="equipment"]:checked')).map(function(e){ return e.value; });
+    var dur    = document.querySelector('input[name="duration"]:checked');
+    var lifts  = document.getElementById('main-lifts').value.trim();
+    var inj    = document.getElementById('injuries').value.trim();
+    var notes  = document.getElementById('extra-notes').value.trim();
+    var lines  = [];
+    lines.push('Experience Level: ' + (exp  ? exp.value  : 'Intermediate'));
+    lines.push('Primary Goal: '     + (goal ? goal.value : 'Hypertrophy'));
+    lines.push('Training Frequency: ' + (dpw ? dpw.value : '4') + ' days per week');
+    if (days.length)  lines.push('Preferred Training Days: ' + days.join(', '));
+    if (equip.length) lines.push('Available Equipment: '     + equip.join(', '));
+    if (dur && dur.value !== 'unlimited') lines.push('Maximum session length: ' + dur.value + ' minutes — keep each workout within this time, use supersets if needed');
+    if (lifts)  lines.push('Main Lifts / Preferred Exercises: ' + lifts);
+    if (inj)    lines.push('Injuries / Physical Limitations: '  + inj);
+    if (notes)  lines.push('Additional Notes: ' + notes);
+    return lines.join('\n');
+  }
+
+  function disableForm() {
+    document.getElementById('form-card').querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = true; });
+  }
+
+  function enableForm() {
+    document.getElementById('form-card').querySelectorAll('input,select,textarea,button').forEach(function(el){ el.disabled = false; });
+  }
+
+  document.getElementById('btn-generate').addEventListener('click', function() {
+    var persona   = document.getElementById('persona-select').value;
+    var userInput = persona ? 'Generate a strength training program for the selected persona.' : buildUserInput();
+
+    if (!persona) {
+      var exp  = document.querySelector('input[name="experience"]:checked');
+      var goal = document.querySelector('input[name="goal"]:checked');
+      if (!exp || !goal) { alert('Please select your experience level and primary goal.'); return; }
     }
 
-    function finishThinking(elapsed) {
-      if (!thinkingContainer) return;
-      var dots = document.getElementById('thinking-dots');
-      if (dots) dots.remove();
+    disableForm();
+    showProgressPanel();
 
-      var header = thinkingContainer.querySelector('.thinking-header');
-      var label = 'Thought for ' + formatTime(elapsed);
-      header.innerHTML = '<span class="chevron">&#9660;</span> ' + label;
+    var fd = new FormData();
+    fd.append('user_input', userInput);
+    fd.append('persona', persona);
 
-      thinkingContainer.classList.add('thinking-done');
-      header.addEventListener('click', function() {
-        thinkingContainer.classList.toggle('expanded');
-      });
-    }
+    fetch('{{ url_for("generate_program") }}', { method: 'POST', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.job_id) { showError('Failed to start generation.'); enableForm(); return; }
 
-    function formatTime(ms) {
-      var secs = Math.round(ms / 1000);
-      if (secs < 60) return secs + ' seconds';
-      var mins = Math.floor(secs / 60);
-      var rem = secs % 60;
-      return mins + 'm ' + rem + 's';
-    }
+        var evtSource = new EventSource('/generate/stream/' + data.job_id);
+        evtSource.onmessage = function(event) {
+          var msg = JSON.parse(event.data);
+          if (msg.step === 'writer') activateStep('writer');
+          if (msg.step === 'critic') activateStep('critic');
+          if (msg.step === 'editor') activateStep('editor');
 
-    function escapeHtml(text) {
-      var d = document.createElement('div');
-      d.appendChild(document.createTextNode(text));
-      return d.innerHTML;
-    }
-
-    btnGenerate.addEventListener('click', function() {
-      var text = userInput.value.trim();
-      var persona = personaSelect.value;
-      if (!text && !persona) { userInput.focus(); return; }
-
-      welcome.style.display = 'none';
-      addBubble('user', '', text || '(using persona ' + persona + ')');
-
-      btnGenerate.disabled = true;
-      userInput.disabled = true;
-      personaSelect.disabled = true;
-
-      var formData = new FormData();
-      formData.append('user_input', text);
-      formData.append('persona', persona);
-
-      var startTime = Date.now();
-
-      fetch('{{ url_for("generate_program") }}', { method: 'POST', body: formData })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.job_id) {
-            addBubble('ai', 'error', 'Failed to start generation.');
-            btnGenerate.disabled = false;
-            userInput.disabled = false;
-            personaSelect.disabled = false;
-            return;
+          if (msg.message && msg.step !== 'done' && msg.step !== 'error' && msg.step !== 'timeout') {
+            addDetail(msg.step, msg.message, msg.detail || false);
           }
-
-          startThinking();
-          var evtSource = new EventSource('/generate/stream/' + data.job_id);
-
-          evtSource.onmessage = function(event) {
-            var msg = JSON.parse(event.data);
-
-            if (msg.step === 'done') {
-              var elapsed = Date.now() - startTime;
-              finishThinking(elapsed);
-              addBubble('ai', '', msg.message);
-              evtSource.close();
-              // Navigate directly — this sets session in a normal request cycle
-              window.location.href = '/generate/complete/' + msg.job_id;
-              return;
-            }
-            if (msg.step === 'error' || msg.step === 'timeout') {
-              finishThinking(Date.now() - startTime);
-              addBubble('ai', 'error', msg.message);
-              evtSource.close();
-              btnGenerate.disabled = false;
-              userInput.disabled = false;
-              personaSelect.disabled = false;
-              return;
-            }
-
-            addThinkingLine(msg.step, msg.message, msg.detail || false);
-          };
-
-          evtSource.onerror = function() {
-            finishThinking(Date.now() - startTime);
+          if (msg.step === 'done') {
+            completeAll();
             evtSource.close();
-          };
-        })
-        .catch(function(err) {
-          addBubble('ai', 'error', 'Network error: ' + err.message);
-          btnGenerate.disabled = false;
-          userInput.disabled = false;
-          personaSelect.disabled = false;
-        });
+            window.location.href = '/generate/complete/' + msg.job_id;
+          }
+          if (msg.step === 'error' || msg.step === 'timeout') {
+            evtSource.close();
+            showError(msg.message);
+            enableForm();
+          }
+        };
+        evtSource.onerror = function() {
+          evtSource.close();
+          showError('Connection lost. Please try again.');
+          enableForm();
+        };
+      })
+      .catch(function(err) { showError('Network error: ' + err.message); enableForm(); });
+  });
+
+  document.getElementById('btn-retry').addEventListener('click', function() {
+    document.getElementById('error-card').classList.remove('visible');
+    document.getElementById('progress-panel').classList.remove('visible');
+    document.getElementById('logo-block').style.display = '';
+    document.getElementById('form-card').style.display  = '';
+    STEP_NAMES.forEach(function(s) {
+      var el = document.getElementById('step-' + s);
+      el.className = 'step-item pending';
+      var t = document.getElementById('time-' + s);
+      if (t) t.textContent = '';
+      var d = document.getElementById('details-' + s);
+      if (d) d.innerHTML = '';
+      clearInterval(stepTimers[s]);
     });
+    currentStep = null;
+    enableForm();
+  });
 
-    userInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        btnGenerate.click();
-      }
-    });
+  // Saved programs
+  document.addEventListener('DOMContentLoaded', function() {
+    fetchSaved();
+    document.getElementById('load-program-btn').addEventListener('click', loadSelected);
+    document.body.classList.add('loaded');
+  });
 
-    document.addEventListener('DOMContentLoaded', function() {
-      fetchSavedPrograms();
-      document.getElementById('load-program-btn').addEventListener('click', loadSelectedProgram);
-    });
+  function fetchSaved() {
+    fetch('{{ url_for("list_saved_programs") }}')
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.success) renderSaved(d.programs); else showLoadMsg(d.message, false); })
+      .catch(function(){ showLoadMsg('Error fetching saved programs', false); });
+  }
 
-    function fetchSavedPrograms() {
-      fetch('{{ url_for("list_saved_programs") }}')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.success) displaySavedPrograms(data.programs);
-          else showLoadMessage(data.message, false);
-        })
-        .catch(function() { showLoadMessage('Error fetching saved programs', false); });
-    }
-
-    function displaySavedPrograms(programs) {
-      var list = document.getElementById('program-list');
-      if (!programs.length) {
-        list.innerHTML = '<div class="empty-state">No saved programs yet</div>';
-        return;
-      }
-      list.innerHTML = programs.map(function(p) {
-        return '<div class="program-item" data-filename="' + p.filename + '">' +
-               '<strong>' + p.name + '</strong>' +
-               '<div class="program-details">Saved: ' + p.date + ' &middot; Weeks: ' + p.weeks + ' &middot; Current: Week ' + p.current_week + '</div>' +
-               '</div>';
-      }).join('');
-
-      list.querySelectorAll('.program-item').forEach(function(item) {
-        item.addEventListener('click', function() {
-          list.querySelectorAll('.program-item').forEach(function(i) { i.classList.remove('selected'); });
-          this.classList.add('selected');
-          document.getElementById('load-program-btn').disabled = false;
-        });
+  function renderSaved(programs) {
+    var list = document.getElementById('program-list');
+    if (!programs.length) { list.innerHTML = '<div class="empty-state">No saved programs yet</div>'; return; }
+    list.innerHTML = programs.map(function(p) {
+      return '<div class="program-item" data-filename="' + p.filename + '">' +
+             '<strong>' + p.name + '</strong>' +
+             '<div class="program-details">Saved: ' + p.date + ' &middot; Weeks: ' + p.weeks + ' &middot; Current: Week ' + p.current_week + '</div>' +
+             '</div>';
+    }).join('');
+    list.querySelectorAll('.program-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        list.querySelectorAll('.program-item').forEach(function(i){ i.classList.remove('selected'); });
+        this.classList.add('selected');
+        document.getElementById('load-program-btn').disabled = false;
       });
-    }
+    });
+  }
 
-    function loadSelectedProgram() {
-      var selected = document.querySelector('.program-item.selected');
-      if (!selected) { showLoadMessage('Select a program first', false); return; }
-      var formData = new FormData();
-      formData.append('filename', selected.dataset.filename);
-      fetch('{{ url_for("load_program") }}', { method: 'POST', body: formData })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.success) {
-            showLoadMessage('Loaded! Redirecting...', true);
-            setTimeout(function() { window.location.href = data.redirect; }, 800);
-          } else showLoadMessage(data.message, false);
-        })
-        .catch(function() { showLoadMessage('Error loading program', false); });
-    }
+  function loadSelected() {
+    var sel = document.querySelector('.program-item.selected');
+    if (!sel) { showLoadMsg('Select a program first', false); return; }
+    var fd = new FormData();
+    fd.append('filename', sel.dataset.filename);
+    fetch('{{ url_for("load_program") }}', { method: 'POST', body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.success) { showLoadMsg('Loaded! Redirecting…', true); setTimeout(function(){ window.location.href = d.redirect; }, 800); }
+        else showLoadMsg(d.message, false);
+      })
+      .catch(function(){ showLoadMsg('Error loading program', false); });
+  }
 
-    function showLoadMessage(msg, ok) {
-      var el = document.getElementById('load-message');
-      el.textContent = msg;
-      el.className = ok ? 'success-message' : 'error-message';
-      el.style.display = 'block';
-      if (!ok) setTimeout(function() { el.style.display = 'none'; }, 4000);
-    }
-  </script>
+  function showLoadMsg(msg, ok) {
+    var el = document.getElementById('load-message');
+    el.textContent = msg;
+    el.className = ok ? 'msg-success' : 'msg-error';
+    el.style.display = 'block';
+    if (!ok) setTimeout(function(){ el.style.display = 'none'; }, 4000);
+  }
+</script>
 </body>
 </html>

@@ -1,0 +1,10 @@
+flask
+flask-session
+langgraph
+google-generativeai
+faiss-cpu
+langchain
+langchain-text-splitters
+pymupdf
+python-dotenv
+pytest

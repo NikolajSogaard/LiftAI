@@ -3,468 +3,1198 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LiftAI - Training Program</title>
+  <title>LiftAI — Training Program</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #232636;
-      --border: #2e3244;
-      --text: #e2e4ea;
-      --muted: #8b8fa3;
-      --accent: #6c63ff;
-      --accent-dim: #4a4494;
-      --green: #34d399;
-      --green-dim: rgba(52,211,153,0.15);
-      --red: #f87171;
-      --red-dim: rgba(248,113,113,0.15);
-      --orange: #fbbf24;
-      --orange-dim: rgba(251,191,36,0.15);
+      --bg:          #0D0D0D;
+      --surface:     #141414;
+      --surface2:    #1A1A1A;
+      --surface3:    #222222;
+      --border:      #2A2A2A;
+      --border-mid:  #333333;
+      --text:        #F5F5F0;
+      --text-muted:  #888884;
+      --text-dim:    #555552;
+      --orange:      #FF6B2B;
+      --orange-dim:  rgba(255, 107, 43, 0.12);
+      --orange-glow: rgba(255, 107, 43, 0.25);
+      --blue:        #38BDF8;
+      --blue-dim:    rgba(56, 189, 248, 0.12);
+      --green:       #4ADE80;
+      --green-dim:   rgba(74, 222, 128, 0.10);
+      --red:         #F87171;
+      --red-dim:     rgba(248, 113, 113, 0.10);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
+      padding-bottom: 100px;
+      opacity: 0;
     }
+    body.loaded { opacity: 1; transition: opacity 0.18s ease; }
 
-    /* Header */
+    /* ── Header ── */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 32px;
+      padding: 14px 28px;
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      background: rgba(13,13,13,0.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 200;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0;
     }
 
     .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      letter-spacing: 1px;
-      color: #ffffff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 1.6rem;
+      line-height: 1;
+      letter-spacing: -0.5px;
+      text-decoration: none;
+    }
+    .logo .logo-lift { color: var(--text); }
+    .logo .logo-ai   { color: var(--orange); }
+
+    .week-indicator {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      padding-left: 18px;
+      margin-left: 16px;
+      border-left: 1px solid var(--border-mid);
+    }
+    .wi-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .wi-number {
+      font-family: 'DM Mono', monospace;
+      font-size: 1.15rem;
+      color: var(--orange);
+      line-height: 1;
     }
 
     .header-nav { display: flex; align-items: center; gap: 20px; }
-
     .header-nav a {
-      color: var(--muted);
+      color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 500;
       transition: color 0.2s;
     }
     .header-nav a:hover { color: var(--text); }
 
-    /* Container */
+    /* ── Layout ── */
     .container {
       width: 95%;
-      max-width: 1300px;
+      max-width: 900px;
       margin: 24px auto;
-      padding-bottom: 40px;
     }
 
-    .page-title {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .page-title h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--accent), var(--green));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    /* Week container */
-    .week-container {
-      margin-bottom: 32px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .week-header {
-      background: var(--surface2);
-      color: var(--text);
-      padding: 14px 20px;
-      font-weight: 700;
-      font-size: 1.1rem;
+    /* ── Week tabs ── */
+    .week-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
       border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      opacity: 0;
+    }
+    body.loaded .week-tabs {
+      animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+    }
+    .week-tabs::-webkit-scrollbar { display: none; }
+
+    .week-tab {
+      padding: 10px 20px;
+      border: none;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
       display: flex;
       align-items: center;
+      gap: 7px;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .week-tab:hover { color: var(--text); }
+    .week-tab.active {
+      color: var(--orange);
+      border-bottom-color: var(--orange);
+    }
+    .week-tab .current-dot {
+      width: 5px; height: 5px;
+      border-radius: 1px;
+      background: var(--orange);
+      display: inline-block;
+    }
+
+    /* ── Week panels ── */
+    .week-panel { display: none; }
+    .week-panel.active { display: block; }
+
+    /* ── Day section ── */
+    .day-section {
+      margin-bottom: 28px;
+      opacity: 0;
+    }
+    body.loaded .day-section { animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+    body.loaded .day-section:nth-child(1) { animation-delay: 0.08s; }
+    body.loaded .day-section:nth-child(2) { animation-delay: 0.14s; }
+    body.loaded .day-section:nth-child(3) { animation-delay: 0.20s; }
+    body.loaded .day-section:nth-child(4) { animation-delay: 0.26s; }
+    body.loaded .day-section:nth-child(5) { animation-delay: 0.32s; }
+    body.loaded .day-section:nth-child(6) { animation-delay: 0.38s; }
+    body.loaded .day-section:nth-child(n+7) { animation-delay: 0.42s; }
+
+    .day-header {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+      border-left: 3px solid var(--orange);
+      padding: 13px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .day-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .day-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .day-meta-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.88rem;
+      color: var(--orange);
+    }
+    .day-meta-lbl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .exercises-list { display: flex; flex-direction: column; }
+
+    /* ── Exercise card ── */
+    .exercise-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      padding: 16px 18px;
+    }
+    .exercise-card:last-child {
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+    .exercise-card + .exercise-card {
+      border-top: 1px solid var(--border);
+    }
+
+    /* Card top: name + visual metrics */
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .card-identity { flex: 1; min-width: 0; }
+
+    .exercise-name {
+      font-size: 0.97rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    /* Visual metric blocks */
+    .card-metrics {
+      display: flex;
+      align-items: stretch;
+      flex-shrink: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border-mid);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .metric-block {
+      padding: 5px 11px;
+      text-align: center;
+    }
+    .metric-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--blue);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .metric-lbl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .metric-divider {
+      width: 1px;
+      background: var(--border-mid);
+      flex-shrink: 0;
+    }
+    .metric-rpe-visual { position: relative; cursor: default; }
+    .metric-rpe-visual .metric-val { color: var(--orange); }
+
+    /* RPE tooltip on the visual block */
+    .rpe-tooltip {
+      display: none;
+      position: absolute;
+      right: 0; top: calc(100% + 6px);
+      background: var(--surface3);
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      z-index: 50;
+      line-height: 1.7;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      min-width: 180px;
+      text-align: left;
+    }
+    .rpe-tooltip strong { color: var(--text); display: block; margin-bottom: 4px; }
+    .metric-rpe-visual:hover .rpe-tooltip { display: block; }
+
+    /* Rest pill */
+    .rest-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      margin-bottom: 10px;
+    }
+    .rest-pill::before {
+      content: '◷';
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    /* AI note toggle */
+    .ai-note-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer;
+      margin-bottom: 0;
+      padding: 5px 0;
+      transition: color 0.2s;
+      user-select: none;
+      width: fit-content;
+    }
+    .ai-note-toggle:hover { color: var(--text-muted); }
+    .ai-note-toggle svg { transition: transform 0.2s; flex-shrink: 0; }
+
+    .ai-note-content {
+      display: none;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      line-height: 1.6;
+      padding: 8px 0 4px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 6px;
+    }
+    .ai-note-content.open { display: block; }
+
+    /* Progression suggestion */
+    .progression-suggestion {
+      background: rgba(56,189,248,0.06);
+      border: 1px solid rgba(56,189,248,0.15);
+      border-radius: 6px;
+      padding: 10px 13px;
+      margin: 10px 0;
+    }
+    .progression-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--blue);
+      margin-bottom: 5px;
+    }
+    .progression-body {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .performance-data { color: var(--text-dim); }
+    .adjustment {
+      margin-top: 4px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .arrow-up   { color: var(--green); font-weight: 700; }
+    .arrow-down { color: var(--red);   font-weight: 700; }
+
+    /* ── Set inputs ── */
+    .sets-section { margin-top: 10px; }
+
+    .set-row {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(42,42,42,0.7);
+    }
+    .set-row:last-child { border-bottom: none; }
+
+    .set-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--orange);
+    }
+
+    .set-field-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .set-fields-row {
+      display: flex;
       gap: 8px;
     }
 
-    .week-badge {
-      background: var(--accent);
-      color: #fff;
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-
-    .day-title {
-      color: var(--accent);
-      font-size: 1rem;
-      font-weight: 600;
-      margin: 20px 20px 12px;
-      padding-left: 10px;
-      border-left: 3px solid var(--accent);
-    }
-
-    .day-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      padding: 0 20px 20px;
-    }
-
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.78rem;
-      table-layout: fixed;
-    }
-
-    table * { font-size: 0.78rem; }
-
-    th {
-      background: var(--surface2);
-      color: var(--muted);
-      font-weight: 600;
-      padding: 10px 8px;
-      text-align: left;
-      border: 1px solid var(--border);
-      text-transform: uppercase;
-      font-size: 0.68rem;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-    }
-
-    td {
-      padding: 10px 8px;
-      text-align: left;
-      border: 1px solid var(--border);
-      vertical-align: top;
-      word-wrap: break-word;
-      background: var(--surface);
-    }
-
-    tr:nth-child(even) td { background: var(--surface2); }
-
-    .program-table { flex: 1; min-width: 60%; border-radius: 8px; overflow: hidden; }
-    .progression-table { flex: 0 0 250px; border: 2px solid var(--green); border-radius: 8px; overflow: hidden; }
-    .progression-table th { background: var(--green); color: #fff; }
-    .progression-table td { border-color: rgba(52,211,153,0.2); }
-
-    /* Set inputs */
     .set-input {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      align-items: center;
-      margin-bottom: 4px;
-      padding: 3px 0;
-      border-bottom: 1px dashed var(--border);
+      width: 58px;
+      padding: 6px 4px;
+      border: 1px solid var(--border-mid);
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--blue);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s;
+      -moz-appearance: textfield;
+    }
+    .set-input:focus { border-color: var(--orange); }
+    .set-input:disabled { opacity: 0.25; cursor: not-allowed; }
+    .set-input::-webkit-outer-spin-button,
+    .set-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    .set-field-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-dim);
     }
 
-    .set-number { font-weight: 600; color: var(--accent); margin-right: 5px; }
+    /* Superset */
+    .superset-tag {
+      display: inline-block;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--orange);
+      background: var(--orange-dim);
+      border: 1px solid rgba(255,107,43,0.25);
+      border-radius: 3px;
+      padding: 1px 6px;
+      margin-bottom: 5px;
+    }
+    .superset-line {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .superset-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--orange);
+      flex-shrink: 0;
+      width: 20px;
+    }
+    .superset-name { font-size: 0.97rem; font-weight: 700; }
 
-    .set-field {
+    .superset-input-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--orange);
+      margin: 10px 0 4px;
+    }
+
+    /* Feedback area */
+    .feedback-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin: 10px 0 5px;
+    }
+    .feedback-area {
+      width: 100%;
+      padding: 8px 11px;
+      min-height: 50px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.79rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+      line-height: 1.5;
+    }
+    .feedback-area:focus { border-color: var(--orange); }
+    .feedback-area:disabled { opacity: 0.2; cursor: not-allowed; resize: none; }
+    .feedback-area::placeholder { color: var(--text-dim); }
+
+    /* Exercise letter badge */
+    .exercise-letter {
       display: inline-flex;
       align-items: center;
-      white-space: nowrap;
-      margin-right: 5px;
-      color: var(--muted);
-    }
-
-    table input[type="number"],
-    table input[type="text"],
-    table textarea {
-      padding: 4px 6px;
-      border: 1px solid var(--border);
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
       border-radius: 4px;
-      font-size: 0.78rem;
-      background: var(--bg);
-      color: var(--text);
-      outline: none;
-      transition: border-color 0.2s;
+      background: var(--orange-dim);
+      color: var(--orange);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      margin-right: 7px;
+      flex-shrink: 0;
+      padding: 0 4px;
     }
 
-    table input:focus, table textarea:focus { border-color: var(--accent); }
-
-    input[type="number"] { width: 48px; }
-
-    input:disabled, textarea:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .feedback-input {
-      width: 100%;
-      padding: 8px;
-      height: 60px;
-      min-height: 60px;
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-family: inherit;
-      resize: vertical;
-    }
-
-    .ai-note {
-      max-height: 80px;
-      overflow: auto;
-      font-style: italic;
-      color: var(--muted);
-      font-size: 0.75rem;
-    }
-
-    .ai-progression {
-      font-weight: 600;
-      color: var(--green);
-      font-size: 0.75rem;
-      padding: 4px 0;
-      white-space: pre-line;
-    }
-
-    .performance-data { color: var(--muted); margin-bottom: 4px; }
-    .adjustment { color: var(--orange); font-weight: 600; }
-    .arrow-up { color: var(--green); }
-    .arrow-down { color: var(--red); }
-
-    /* Action buttons */
-    .action-buttons {
+    /* ── Sticky action bar ── */
+    .sticky-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(13,13,13,0.97);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding: 12px 24px;
       display: flex;
       justify-content: center;
-      gap: 12px;
-      margin: 28px 0;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      z-index: 150;
     }
 
     .btn {
-      border: none;
-      padding: 12px 24px;
-      border-radius: 10px;
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-family: 'Barlow Condensed', sans-serif;
       font-size: 0.9rem;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      transition: all 0.15s;
+      white-space: nowrap;
+      border: none;
     }
+    .btn-primary {
+      background: var(--orange);
+      color: #fff;
+    }
+    .btn-primary:hover { background: #e85c20; box-shadow: 0 0 16px var(--orange-glow); }
+    .btn-primary:active { transform: scale(0.97); }
 
-    .btn:active { transform: scale(0.97); }
+    .btn-save {
+      background: transparent;
+      border: 1px solid var(--orange);
+      color: var(--orange);
+    }
+    .btn-save:hover { background: var(--orange-dim); }
 
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: #5a52e0; }
+    .btn-danger {
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      color: var(--text-muted);
+    }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
 
-    .btn-save { background: var(--orange); color: #1a1d27; }
-    .btn-save:hover { background: #e5a91f; }
-
-    .btn-danger { background: var(--red); color: #fff; }
-    .btn-danger:hover { background: #e55a5a; }
-
-    /* Modal */
+    /* ── Modal ── */
     .modal-overlay {
       display: none;
       position: fixed;
-      z-index: 1000;
-      left: 0; top: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6);
+      inset: 0;
+      background: rgba(0,0,0,0.7);
       backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
     }
+    .modal-overlay[style*="block"] { display: flex !important; }
 
     .modal-content {
       background: var(--surface);
-      border: 1px solid var(--border);
-      margin: 12% auto;
-      padding: 28px;
-      border-radius: 16px;
-      width: 90%;
-      max-width: 480px;
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 24px;
+      width: 360px;
+      max-width: 92vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
     }
-
-    .modal-content h2 {
-      font-size: 1.2rem;
-      margin-bottom: 16px;
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
     }
-
+    .modal-header h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
     .close-button {
-      color: var(--muted);
-      float: right;
-      font-size: 24px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
       cursor: pointer;
+      line-height: 1;
+      padding: 0;
       transition: color 0.2s;
     }
     .close-button:hover { color: var(--text); }
 
+    #save-program-form label {
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
     #save-program-form input[type="text"] {
       width: 100%;
-      padding: 10px 12px;
-      margin: 10px 0 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
+      padding: 9px 13px;
+      border: 1px solid var(--border-mid);
+      border-radius: 5px;
+      background: var(--surface2);
       color: var(--text);
-      font-size: 0.9rem;
-      outline: none;
-    }
-
-    #save-program-form input[type="text"]:focus { border-color: var(--accent); }
-
-    #save-message {
-      margin-top: 12px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      text-align: center;
+      font-family: 'DM Sans', sans-serif;
       font-size: 0.85rem;
+      outline: none;
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+    #save-program-form input[type="text"]:focus { border-color: var(--orange); }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 400;
+    }
+    .toast {
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.83rem;
+      font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      pointer-events: auto;
+      animation: toastIn 0.25s ease;
+      white-space: nowrap;
+    }
+    .toast-success { background: #0f2a1e; border: 1px solid rgba(74,222,128,0.3); color: var(--green); }
+    .toast-error   { background: #2a0f0f; border: 1px solid rgba(248,113,113,0.3); color: var(--red); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    .success-message { background: var(--green-dim); color: var(--green); }
-    .error-message { background: var(--red-dim); color: var(--red); }
-
-    @media (max-width: 1000px) {
-      .day-container { flex-direction: column; }
-      .program-table, .progression-table { width: 100%; }
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 16px 24px 120px;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      font-family: 'DM Sans', sans-serif;
     }
 
-    @media (max-width: 768px) {
-      .container { width: 98%; }
-      table, table * { font-size: 0.7rem; }
-      th, td { padding: 6px; }
+    /* ── Animations ── */
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
       .header { padding: 12px 16px; }
+      .week-indicator { display: none; }
+      .container { width: 98%; }
+      .card-top { flex-direction: column; gap: 8px; }
+      .card-metrics { align-self: flex-start; }
+      .set-fields-row { flex-wrap: wrap; }
+      .sticky-bar { padding: 10px 12px; gap: 7px; }
+      .btn { padding: 9px 13px; font-size: 0.82rem; }
     }
   </style>
 </head>
 
 <body>
   <div class="header">
-    <div class="logo">LiftAI</div>
+    <div class="header-left">
+      <a class="logo" href="{{ url_for('generate_program') }}">
+        <span class="logo-lift">LIFT</span><span class="logo-ai">AI</span>
+      </a>
+      <div class="week-indicator">
+        <span class="wi-label">Week</span>
+        <span class="wi-number">{{ current_week }}</span>
+      </div>
+    </div>
     <div class="header-nav">
       <a href="{{ url_for('generate_program') }}">New Program</a>
     </div>
   </div>
 
   <div class="container">
-    <div class="page-title">
-      <h1>Training Program</h1>
+
+    <!-- Week tabs -->
+    {% if programs|length > 1 %}
+    <div class="week-tabs" id="week-tabs">
+      {% for week_program in programs %}
+      <div class="week-tab {% if week_program.week == current_week %}active{% endif %}"
+           data-week="{{ week_program.week }}"
+           onclick="switchWeek({{ week_program.week }})">
+        Week {{ week_program.week }}
+        {% if week_program.week == current_week %}
+        <span class="current-dot" title="Current week"></span>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
+    {% endif %}
 
     <form action="{{ url_for('next_week') }}" method="post" id="training-form">
+
       {% for week_program in programs %}
-      <div class="week-container" id="week-{{ week_program.week }}">
-        <div class="week-header">
-          Week {{ week_program.week }}
-          {% if week_program.week == current_week %}
-          <span class="week-badge">CURRENT</span>
-          {% endif %}
-        </div>
+      <div class="week-panel {% if week_program.week == current_week %}active{% endif %}"
+           id="week-panel-{{ week_program.week }}">
 
         {% for day, exercises in week_program.program.items() %}
-          <h2 class="day-title">{{ day }}</h2>
-          <div class="day-container">
-            <table class="program-table">
-              <thead>
-                <tr>
-                  <th style="width:15%">Exercise</th>
-                  <th style="width:10%">Sets x Reps</th>
-                  <th style="width:10%">Target RPE</th>
-                  <th style="width:10%">Rest</th>
-                  <th style="width:25%">AI Note</th>
-                  <th style="width:45%">Set Feedback</th>
-                  <th style="width:20%">Overall Feedback</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for exercise in exercises %}
-                {% set exercise_index = loop.index0 %}
-                <tr>
-                  <td>
-                    {{ exercise.name }}
-                    <input type="hidden" name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_name" value="{{ exercise.name }}">
-                  </td>
-                  <td>{{ exercise.sets|default(3, true) }} x {{ exercise.reps|default('8-12', true) }}</td>
-                  <td>{{ exercise.target_rpe }}</td>
-                  <td>{{ exercise.rest }}</td>
-                  <td><div class="ai-note">{{ exercise.cues }}</div></td>
-                  <td>
-                    {% if week_program.week > 1 and exercise.suggestion is defined %}
-                    <div class="ai-progression">{{ exercise.suggestion|default('Based on last week: Try ' + exercise.sets|string + ' sets of ' + exercise.reps + ' at RPE ' + exercise.target_rpe|string) }}</div>
-                    {% endif %}
-                    {% for i in range(exercise.sets|default(3, true)) %}
-                      <div class="set-input">
-                        <span class="set-number">S{{ i+1 }}</span>
-                        <span class="set-field">W: <input type="number" step="0.5" name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_weight" {% if week_program.week != current_week %}disabled{% endif %}></span>
-                        <span class="set-field">R: <input type="number" name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_reps" {% if week_program.week != current_week %}disabled{% endif %}></span>
-                        <span class="set-field">RPE: <input type="number" step="0.5" name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_actual_rpe" {% if week_program.week != current_week %}disabled{% endif %}></span>
-                      </div>
-                    {% endfor %}
-                  </td>
-                  <td>
-                    <textarea name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_feedback" class="feedback-input" placeholder="Your overall feedback" {% if week_program.week != current_week %}disabled{% endif %}></textarea>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+        <div class="day-section">
+
+          <div class="day-header">
+            <span class="day-name">{{ day }}</span>
+            <div class="day-meta">
+              <span class="day-meta-num">{{ exercises|length }}</span>
+              <span class="day-meta-lbl">Exercise{% if exercises|length != 1 %}s{% endif %}</span>
+            </div>
           </div>
+
+          <div class="exercises-list">
+            {% for exercise in exercises %}
+            {% set exercise_index = loop.index0 %}
+
+            <div class="exercise-card">
+              <!-- Hidden name field -->
+              <input type="hidden"
+                     name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_name"
+                     value="{{ exercise.name }}">
+
+              <!-- Hidden machine-readable badges for extractProgramFromDOM() -->
+              <span class="badge-sets" style="display:none">{{ exercise.sets|default(3, true) }} × {{ exercise.reps|default('8-12', true) }}</span>
+              <span class="badge-rpe" style="display:none">ⓘ RPE {{ exercise.target_rpe }}</span>
+
+              <!-- Card top: name + visual metrics -->
+              <div class="card-top">
+                <div class="card-identity">
+                  <div class="exercise-name">{{ exercise.name }}</div>
+                </div>
+                <div class="card-metrics">
+                  <div class="metric-block metric-sets">
+                    <div class="metric-val">{{ exercise.sets|default(3, true) }}×{{ exercise.reps|default('8-12', true) }}</div>
+                    <div class="metric-lbl">Sets×Reps</div>
+                  </div>
+                  <div class="metric-divider"></div>
+                  <div class="metric-block metric-rpe-visual">
+                    <div class="metric-val">{{ exercise.target_rpe }}</div>
+                    <div class="metric-lbl">RPE ⓘ</div>
+                    <div class="rpe-tooltip">
+                      <strong>RPE Scale</strong>
+                      6 — Very easy, 4+ reps left<br>
+                      7 — Moderate, 3 reps left<br>
+                      8 — Hard, 2 reps left<br>
+                      9 — Very hard, 1 rep left<br>
+                      10 — Maximum effort
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rest -->
+              {% if exercise.rest %}
+              <div class="rest-pill">Rest: {{ exercise.rest }}</div>
+              {% endif %}
+
+              <!-- Collapsible AI note -->
+              {% if exercise.cues %}
+              <div class="ai-note-toggle" onclick="toggleNote(this)">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M2 3l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                </svg>
+                Coach note
+              </div>
+              <div class="ai-note-content">{{ exercise.cues }}</div>
+              {% endif %}
+
+              <!-- Progression suggestion (Week 2+) -->
+              {% if week_program.week > 1 and exercise.suggestion is defined and exercise.suggestion %}
+              <div class="progression-suggestion">
+                <div class="progression-label">Week {{ week_program.week }} suggestion</div>
+                <div class="progression-body ai-progression">{{ exercise.suggestion }}</div>
+              </div>
+              {% endif %}
+
+              <!-- Per-set inputs -->
+              <div class="sets-section">
+                {% for i in range(exercise.sets|default(3, true)) %}
+                <div class="set-row">
+                  <span class="set-label">S{{ i+1 }}</span>
+                  <div class="set-fields-row">
+                    <div class="set-field-group">
+                      <input type="number" step="0.5" class="set-input"
+                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_weight"
+                             placeholder="—"
+                             {% if week_program.week != current_week %}disabled{% endif %}>
+                      <span class="set-field-label">kg</span>
+                    </div>
+                    <div class="set-field-group">
+                      <input type="number" class="set-input"
+                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_reps"
+                             placeholder="—"
+                             {% if week_program.week != current_week %}disabled{% endif %}>
+                      <span class="set-field-label">reps</span>
+                    </div>
+                    <div class="set-field-group">
+                      <input type="number" step="0.5" class="set-input"
+                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_actual_rpe"
+                             placeholder="—"
+                             {% if week_program.week != current_week %}disabled{% endif %}>
+                      <span class="set-field-label">RPE</span>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <!-- Overall feedback -->
+              {% if week_program.week == current_week %}
+              <div class="feedback-label">Notes</div>
+              <textarea class="feedback-area"
+                        name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_feedback"
+                        placeholder="Form cues, how it felt, anything notable…"></textarea>
+              {% else %}
+              <textarea class="feedback-area"
+                        name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_feedback"
+                        disabled></textarea>
+              {% endif %}
+
+            </div>
+            {% endfor %}
+          </div>
+        </div>
         {% endfor %}
+
       </div>
       {% endfor %}
 
-      <div class="action-buttons">
-        <button type="submit" class="btn btn-primary">Generate Week {{ current_week + 1 }}</button>
-        <button type="button" class="btn btn-save" id="open-save-modal">Save Program</button>
-        <a href="{{ url_for('generate_program') }}" style="text-decoration:none;">
-          <button type="button" class="btn btn-danger">Start New</button>
-        </a>
-      </div>
     </form>
   </div>
 
-  <!-- Save Modal -->
+  <!-- Sticky action bar -->
+  <div class="sticky-bar">
+    <input type="hidden" name="week_number" value="{{ current_week }}" form="training-form">
+    <button type="submit" form="training-form" class="btn btn-primary">
+      Generate Week {{ current_week + 1 }}
+    </button>
+    <button type="button" class="btn btn-save" id="open-save-modal">
+      Save Program
+    </button>
+    <a href="{{ url_for('generate_program') }}" style="text-decoration:none;">
+      <button type="button" class="btn btn-danger">Start New</button>
+    </a>
+  </div>
+
+  <!-- Save modal -->
   <div id="save-program-modal" class="modal-overlay">
     <div class="modal-content">
-      <span class="close-button">&times;</span>
-      <h2>Save Program</h2>
+      <div class="modal-header">
+        <h2>Save Program</h2>
+        <button class="close-button">&times;</button>
+      </div>
       <form id="save-program-form">
-        <label for="program-name" style="font-size:0.85rem; color:var(--muted);">Program Name</label>
+        <label for="program-name">Program Name</label>
         <input type="text" id="program-name" name="program_name" placeholder="My Training Program">
-        <button type="submit" class="btn btn-save" style="width:100%;">Save</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Save</button>
       </form>
       <div id="save-message" style="display:none;"></div>
     </div>
   </div>
 
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <footer>LiftAI &mdash; AI-Powered Strength Training</footer>
+
+  <!-- ── Chat UI ── -->
+  <style>
+    #chat-fab {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      width: 48px; height: 48px;
+      border-radius: 8px;
+      background: var(--orange);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px var(--orange-glow);
+      z-index: 300;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #chat-fab:hover {
+      transform: scale(1.06);
+      box-shadow: 0 6px 28px rgba(255,107,43,0.5);
+    }
+    #chat-fab svg { width: 20px; height: 20px; fill: #fff; }
+
+    #chat-panel {
+      position: fixed;
+      bottom: 72px;
+      right: 0;
+      width: 380px;
+      max-width: 95vw;
+      height: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 12px 0 0 12px;
+      display: flex;
+      flex-direction: column;
+      z-index: 299;
+      box-shadow: -4px 0 32px rgba(0,0,0,0.5);
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #chat-panel.open { transform: translateX(0); }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .chat-header-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .chat-status-dot {
+      width: 7px; height: 7px;
+      border-radius: 1px;
+      background: var(--orange);
+      flex-shrink: 0;
+    }
+    #chat-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+      transition: color 0.2s;
+    }
+    #chat-close:hover { color: var(--text); }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    #chat-messages::-webkit-scrollbar { width: 3px; }
+    #chat-messages::-webkit-scrollbar-track { background: transparent; }
+    #chat-messages::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+    .chat-msg {
+      max-width: 86%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+    .chat-msg-user {
+      background: var(--orange);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+    .chat-msg-bot {
+      background: var(--surface2);
+      color: var(--text);
+      align-self: flex-start;
+      border-bottom-left-radius: 3px;
+    }
+    .chat-msg-edit {
+      background: var(--green-dim);
+      border: 1px solid rgba(74,222,128,0.25);
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.73rem;
+      align-self: flex-start;
+      border-radius: 5px;
+    }
+    .chat-typing {
+      align-self: flex-start;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-style: italic;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .typing-dots span {
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: typingBounce 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px 12px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid var(--border-mid);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.86rem;
+      outline: none;
+      resize: none;
+      min-height: 50px;
+      max-height: 130px;
+      transition: border-color 0.2s;
+    }
+    #chat-input:focus { border-color: var(--orange); }
+    #chat-input::placeholder { color: var(--text-dim); }
+
+    #chat-send {
+      padding: 9px 14px;
+      background: var(--orange);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+    #chat-send:hover { background: #e85c20; }
+    #chat-send:disabled { opacity: 0.45; cursor: not-allowed; }
+  </style>
+
+  <!-- Floating chat button -->
+  <button id="chat-fab" title="Chat with LiftAI Coach" onclick="toggleChat()">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+    </svg>
+  </button>
+
+  <!-- Chat panel -->
+  <div id="chat-panel">
+    <div class="chat-header">
+      <div class="chat-header-title">
+        <div class="chat-status-dot"></div>
+        LiftAI Coach
+      </div>
+      <button id="chat-close" onclick="toggleChat()">&times;</button>
+    </div>
+    <div id="chat-messages">
+      <div class="chat-msg chat-msg-bot">
+        Hi! I'm your LiftAI Coach. Ask me anything about your program, or tell me what you'd like to change — I can edit it live.
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Ask me anything or say 'change bench to 4 sets'…"></textarea>
+      <button id="chat-send" onclick="sendChatMessage()">Send</button>
+    </div>
+  </div>
+
   <script>
-    var modal = document.getElementById('save-program-modal');
-    var openModalBtn = document.getElementById('open-save-modal');
+    // ── Toast ──────────────────────────────────────────────────────────────────
+    function showToast(message, type) {
+      var container = document.getElementById('toast-container');
+      var toast = document.createElement('div');
+      toast.className = 'toast toast-' + (type || 'success');
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 3000);
+    }
+
+    // ── Week tab switching ─────────────────────────────────────────────────────
+    function switchWeek(week) {
+      document.querySelectorAll('.week-tab').forEach(function(tab) {
+        tab.classList.toggle('active', parseInt(tab.dataset.week) === week);
+      });
+      document.querySelectorAll('.week-panel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.id === 'week-panel-' + week);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ── AI note toggle ─────────────────────────────────────────────────────────
+    function toggleNote(toggleEl) {
+      var content = toggleEl.nextElementSibling;
+      var isOpen = content.classList.toggle('open');
+      var svg = toggleEl.querySelector('svg');
+      svg.style.transform = isOpen ? 'rotate(-180deg)' : '';
+      svg.style.transition = 'transform 0.2s';
+    }
+
+    // ── Save modal ────────────────────────────────────────────────────────────
+    var modal         = document.getElementById('save-program-modal');
+    var openModalBtn  = document.getElementById('open-save-modal');
     var closeModalBtn = document.querySelector('.close-button');
-    var saveForm = document.getElementById('save-program-form');
-    var saveMessage = document.getElementById('save-message');
+    var saveForm      = document.getElementById('save-program-form');
+    var saveMessage   = document.getElementById('save-message');
 
     openModalBtn.addEventListener('click', function() { modal.style.display = 'block'; });
-
     closeModalBtn.addEventListener('click', function() {
       modal.style.display = 'none';
       saveMessage.style.display = 'none';
     });
-
     window.addEventListener('click', function(event) {
       if (event.target === modal) {
         modal.style.display = 'none';
@@ -475,88 +1205,313 @@
     saveForm.addEventListener('submit', function(event) {
       event.preventDefault();
       var formData = new FormData(saveForm);
-
       fetch('{{ url_for("save_program") }}', { method: 'POST', body: formData })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          saveMessage.textContent = data.message;
-          saveMessage.className = data.success ? 'success-message' : 'error-message';
-          saveMessage.style.display = 'block';
-          if (data.success) {
-            setTimeout(function() {
-              saveForm.reset();
-              modal.style.display = 'none';
-              saveMessage.style.display = 'none';
-            }, 2000);
-          }
+          modal.style.display = 'none';
+          saveMessage.style.display = 'none';
+          saveForm.reset();
+          showToast(data.message, data.success ? 'success' : 'error');
         })
-        .catch(function(error) {
-          saveMessage.textContent = 'Error saving program.';
-          saveMessage.className = 'error-message';
-          saveMessage.style.display = 'block';
-        });
+        .catch(function() { showToast('Error saving program.', 'error'); });
     });
 
-    document.addEventListener('DOMContentLoaded', function() {
-      var progressionElements = document.querySelectorAll('.ai-progression');
+    // ── Exercise letter labels (A, B, C… / A1+A2, B…) ─────────────────────────
+    function applyExerciseLabels(daySection) {
+      var cards = daySection.querySelectorAll('.exercise-card');
+      var letterCode = 65; // 'A'
 
-      progressionElements.forEach(function(element) {
+      cards.forEach(function(card) {
+        var letter = String.fromCharCode(letterCode++);
+        var nameEl = card.querySelector('.exercise-name');
+        if (!nameEl) return;
+
+        var raw = (nameEl.dataset.rawName || nameEl.textContent).trim();
+        nameEl.dataset.rawName = raw;
+        var lower = raw.toLowerCase();
+        var isSuperset = lower.startsWith('superset:') || lower.startsWith('superset -');
+
+        if (isSuperset) {
+          var cleaned = raw.replace(/^superset[:\-]\s*/i, '');
+          var parts = cleaned.split(/\s*(?:&|\/| and )\s*/i);
+          if (parts.length >= 2) {
+            nameEl.innerHTML =
+              '<span class="superset-tag">Superset</span>' +
+              '<div class="superset-line"><span class="superset-label">' + letter + '1</span><span class="superset-name">' + parts[0].trim() + '</span></div>' +
+              '<div class="superset-line"><span class="superset-label">' + letter + '2</span><span class="superset-name">' + parts[1].trim() + '</span></div>';
+          }
+        } else {
+          nameEl.innerHTML = '<span class="exercise-letter">' + letter + '</span>' + raw;
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.day-section').forEach(applyExerciseLabels);
+    });
+
+    // ── Superset: duplicate set inputs for A2 ────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.exercise-card').forEach(function(card) {
+        var nameEl = card.querySelector('.exercise-name');
+        if (!nameEl || !nameEl.querySelector('.superset-tag')) return;
+
+        var setsSection = card.querySelector('.sets-section');
+        if (!setsSection) return;
+
+        var a1Label = document.createElement('div');
+        a1Label.className = 'superset-input-label';
+        a1Label.textContent = 'A1';
+        setsSection.parentNode.insertBefore(a1Label, setsSection);
+
+        var a2Section = setsSection.cloneNode(true);
+        a2Section.querySelectorAll('input').forEach(function(inp) {
+          inp.name = inp.name.replace(/_set(\d+)_/, '_a2set$1_');
+          inp.value = '';
+        });
+
+        var a2Label = document.createElement('div');
+        a2Label.className = 'superset-input-label';
+        a2Label.textContent = 'A2';
+
+        setsSection.after(a2Label);
+        a2Label.after(a2Section);
+      });
+    });
+
+    // ── Progression formatting ─────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.ai-progression').forEach(function(element) {
         var content = element.textContent;
-        if (!content || content.trim() === '') return;
-        var tdElement = element.closest('td');
-        if (!tdElement) return;
-        if (!content.includes('Set 1:')) return;
+        if (!content || content.trim() === '' || !content.includes('Set 1:')) return;
 
         var lines = content.split('\n');
         var performanceLines = [];
-        var adjustmentLine = '';
+        var adjustmentLine   = '';
 
-        for (var idx = 0; idx < lines.length; idx++) {
-          var trimmed = lines[idx].trim();
+        lines.forEach(function(line) {
+          var trimmed = line.trim();
           if (trimmed.startsWith('Set ')) {
             performanceLines.push(trimmed);
           } else if (trimmed && (
             trimmed.includes('kg') || trimmed.includes('reps') ||
-            trimmed.includes('\u2191') || trimmed.includes('\u2193') ||
-            trimmed.includes('arrow up') || trimmed.includes('arrow down')
+            trimmed.includes('\u2191') || trimmed.includes('\u2193')
           )) {
             adjustmentLine = trimmed;
           }
-        }
+        });
 
         if (performanceLines.length === 0) return;
-        element.innerHTML = '';
 
         if (adjustmentLine) {
           adjustmentLine = adjustmentLine
-            .replace('(arrow up)', '\u2191')
+            .replace('(arrow up)',   '\u2191')
             .replace('(arrow down)', '\u2193')
-            .replace('arrow up', '\u2191')
-            .replace('arrow down', '\u2193');
+            .replace('arrow up',     '\u2191')
+            .replace('arrow down',   '\u2193');
         }
 
-        var performanceData = document.createElement('div');
-        performanceData.className = 'performance-data';
-        performanceData.innerHTML = performanceLines.join('<br>');
-        element.appendChild(performanceData);
+        element.innerHTML = '';
+
+        var perfDiv = document.createElement('div');
+        perfDiv.className = 'performance-data';
+        perfDiv.innerHTML = performanceLines.join('<br>');
+        element.appendChild(perfDiv);
 
         if (adjustmentLine) {
-          var adjustmentDiv = document.createElement('div');
-          adjustmentDiv.className = 'adjustment';
+          var adjDiv = document.createElement('div');
+          adjDiv.className = 'adjustment';
           if (adjustmentLine.includes('\u2191')) {
-            adjustmentDiv.innerHTML = adjustmentLine.replace('\u2191', '<span class="arrow-up">\u2191</span>');
+            adjDiv.innerHTML = adjustmentLine.replace('\u2191', '<span class="arrow-up">\u2191</span>');
           } else if (adjustmentLine.includes('\u2193')) {
-            adjustmentDiv.innerHTML = adjustmentLine.replace('\u2193', '<span class="arrow-down">\u2193</span>');
+            adjDiv.innerHTML = adjustmentLine.replace('\u2193', '<span class="arrow-down">\u2193</span>');
           } else {
-            adjustmentDiv.textContent = adjustmentLine;
+            adjDiv.textContent = adjustmentLine;
           }
-          element.appendChild(adjustmentDiv);
+          element.appendChild(adjDiv);
         }
+      });
 
-        var firstSetInput = tdElement.querySelector('.set-input');
-        if (firstSetInput) {
-          tdElement.insertBefore(element, firstSetInput);
+      // Add loaded class for entry animations
+      document.body.classList.add('loaded');
+    });
+
+    // ── Chat ─────────────────────────────────────────────────────────────────
+    var chatOpen = false;
+    var chatHistory = [];
+    var chatBusy = false;
+    var liveProgram = null;
+
+    function toggleChat() {
+      chatOpen = !chatOpen;
+      document.getElementById('chat-panel').classList.toggle('open', chatOpen);
+      if (chatOpen) {
+        document.getElementById('chat-input').focus();
+        liveProgram = extractProgramFromDOM();
+      }
+    }
+
+    function extractProgramFromDOM() {
+      var prog = {};
+      var activePanel = document.querySelector('.week-panel.active');
+      if (!activePanel) return prog;
+      activePanel.querySelectorAll('.day-section').forEach(function(daySection) {
+        var dayName = daySection.querySelector('.day-name').textContent.trim();
+        prog[dayName] = [];
+        daySection.querySelectorAll('.exercise-card').forEach(function(card) {
+          var nameEl  = card.querySelector('.exercise-name');
+          var badgeEl = card.querySelector('.badge-sets');
+          var rpeEl   = card.querySelector('.badge-rpe');
+          var cuesEl  = card.querySelector('.ai-note-content');
+          var restEl  = card.querySelector('.rest-pill');
+          var name     = nameEl   ? (nameEl.dataset.rawName || nameEl.textContent).trim()                 : '';
+          var setsReps = badgeEl  ? badgeEl.textContent.trim()                                            : '3 × 8-12';
+          var rpeText  = rpeEl    ? rpeEl.textContent.replace('ⓘ','').replace('RPE','').replace(/\n.*$/s,'').trim() : '8';
+          var cues     = cuesEl   ? cuesEl.textContent.trim()                                             : '';
+          var rest     = restEl   ? restEl.textContent.replace('Rest:', '').trim()                        : '90 seconds';
+          var parts = setsReps.split('×');
+          var sets  = parseInt((parts[0] || '3').trim()) || 3;
+          var reps  = (parts[1] || '8-12').trim();
+          prog[dayName].push({ name: name, sets: sets, reps: reps, target_rpe: rpeText, cues: cues, rest: rest });
+        });
+      });
+      return prog;
+    }
+
+    function renderUpdatedProgram(updatedProgram) {
+      var activePanel = document.querySelector('.week-panel.active');
+      if (!activePanel) return;
+      activePanel.querySelectorAll('.day-section').forEach(function(daySection) {
+        var dayName = daySection.querySelector('.day-name').textContent.trim();
+        if (!updatedProgram[dayName]) return;
+        var cards  = daySection.querySelectorAll('.exercise-card');
+        var exList = updatedProgram[dayName];
+        cards.forEach(function(card, i) {
+          if (i >= exList.length) return;
+          var ex = exList[i];
+          var nameEl  = card.querySelector('.exercise-name');
+          var badgeEl = card.querySelector('.badge-sets');
+          var rpeEl   = card.querySelector('.badge-rpe');
+          var cuesEl  = card.querySelector('.ai-note-content');
+          var restEl  = card.querySelector('.rest-pill');
+          if (nameEl && ex.name) { nameEl.dataset.rawName = ex.name; nameEl.textContent = ex.name; }
+          if (badgeEl) badgeEl.textContent = (ex.sets || 3) + ' × ' + (ex.reps || '8-12');
+          // Also update visible metric blocks
+          var visSetEl = card.querySelector('.metric-sets .metric-val');
+          if (visSetEl) visSetEl.textContent = (ex.sets || 3) + '×' + (ex.reps || '8-12');
+          var visRpeEl = card.querySelector('.metric-rpe-visual .metric-val');
+          if (visRpeEl) visRpeEl.textContent = ex.target_rpe || '8';
+          if (rpeEl) {
+            rpeEl.childNodes.forEach(function(n) {
+              if (n.nodeType === 3) n.textContent = ' RPE ' + (ex.target_rpe || '8');
+            });
+          }
+          if (cuesEl) cuesEl.textContent = ex.cues || cuesEl.textContent;
+          if (restEl) restEl.textContent = 'Rest: ' + (ex.rest || restEl.textContent.replace('Rest:','').trim());
+        });
+        // Re-apply letter/superset formatting after name updates
+        applyExerciseLabels(daySection);
+        // Update day header exercise count
+        var metaNum = daySection.querySelector('.day-meta-num');
+        var metaLbl = daySection.querySelector('.day-meta-lbl');
+        if (metaNum) metaNum.textContent = exList.length;
+        if (metaLbl) metaLbl.textContent = 'Exercise' + (exList.length !== 1 ? 's' : '');
+      });
+      liveProgram = updatedProgram;
+    }
+
+    function appendChatMsg(text, role) {
+      var msgs = document.getElementById('chat-messages');
+      var div  = document.createElement('div');
+      div.className = 'chat-msg ' + (role === 'user' ? 'chat-msg-user' : role === 'edit' ? 'chat-msg-edit' : 'chat-msg-bot');
+      div.textContent = text;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      return div;
+    }
+
+    function showTyping() {
+      var msgs = document.getElementById('chat-messages');
+      var div  = document.createElement('div');
+      div.className = 'chat-typing';
+      div.id = 'chat-typing-indicator';
+      div.innerHTML = 'Coach is thinking <span class="typing-dots"><span></span><span></span><span></span></span>';
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function hideTyping() {
+      var el = document.getElementById('chat-typing-indicator');
+      if (el) el.remove();
+    }
+
+    function sendChatMessage() {
+      if (chatBusy) return;
+      var input   = document.getElementById('chat-input');
+      var message = input.value.trim();
+      if (!message) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+      appendChatMsg(message, 'user');
+      chatHistory.push({ role: 'user', parts: [{ text: message }] });
+
+      chatBusy = true;
+      document.getElementById('chat-send').disabled = true;
+      showTyping();
+
+      var currentProgram = liveProgram || extractProgramFromDOM();
+
+      fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message,
+          program: currentProgram,
+          history: chatHistory.slice(0, -1),
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        hideTyping();
+        if (data.error) {
+          appendChatMsg('Error: ' + data.error, 'bot');
+        } else {
+          if (data.function_results && data.function_results.length) {
+            data.function_results.forEach(function(r) { appendChatMsg('✓ ' + r, 'edit'); });
+          }
+          if (data.reply) {
+            appendChatMsg(data.reply, 'bot');
+            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] });
+          }
+          if (data.updated_program) {
+            renderUpdatedProgram(data.updated_program);
+            showToast('Program updated by Coach', 'success');
+          }
         }
+      })
+      .catch(function() {
+        hideTyping();
+        appendChatMsg('Network error. Please try again.', 'bot');
+      })
+      .finally(function() {
+        chatBusy = false;
+        document.getElementById('chat-send').disabled = false;
+      });
+    }
+
+    // Send on Enter (Shift+Enter for newline)
+    document.addEventListener('DOMContentLoaded', function() {
+      var chatInput = document.getElementById('chat-input');
+      chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendChatMessage();
+        }
+      });
+      chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 90) + 'px';
       });
     });
   </script>
