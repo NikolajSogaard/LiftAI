@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def parse_json_draft(data) -> dict:
+def parse_json_draft(data: "dict | str | None") -> dict:
     """Parse a weekly_program dict from various formats.
 
     Handles: raw dict, nested dict with 'weekly_program' / 'formatted' / 'draft'
