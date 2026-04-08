@@ -1217,35 +1217,37 @@
     });
 
     // ── Exercise letter labels (A, B, C… / A1+A2, B…) ─────────────────────────
-    document.addEventListener('DOMContentLoaded', function() {
-      document.querySelectorAll('.day-section').forEach(function(daySection) {
-        var cards = daySection.querySelectorAll('.exercise-card');
-        var letterCode = 65; // 'A'
+    function applyExerciseLabels(daySection) {
+      var cards = daySection.querySelectorAll('.exercise-card');
+      var letterCode = 65; // 'A'
 
-        cards.forEach(function(card) {
-          var letter = String.fromCharCode(letterCode++);
-          var nameEl = card.querySelector('.exercise-name');
-          if (!nameEl) return;
+      cards.forEach(function(card) {
+        var letter = String.fromCharCode(letterCode++);
+        var nameEl = card.querySelector('.exercise-name');
+        if (!nameEl) return;
 
-          var raw = nameEl.textContent.trim();
-          var lower = raw.toLowerCase();
-          var isSuperset = lower.startsWith('superset:') || lower.startsWith('superset -');
+        var raw = (nameEl.dataset.rawName || nameEl.textContent).trim();
+        nameEl.dataset.rawName = raw;
+        var lower = raw.toLowerCase();
+        var isSuperset = lower.startsWith('superset:') || lower.startsWith('superset -');
 
-          if (isSuperset) {
-            var cleaned = raw.replace(/^superset[:\-]\s*/i, '');
-            var parts = cleaned.split(/\s*(?:&|\/| and )\s*/i);
-            if (parts.length >= 2) {
-              nameEl.innerHTML =
-                '<span class="superset-tag">Superset</span>' +
-                '<div class="superset-line"><span class="superset-label">' + letter + '1</span><span class="superset-name">' + parts[0].trim() + '</span></div>' +
-                '<div class="superset-line"><span class="superset-label">' + letter + '2</span><span class="superset-name">' + parts[1].trim() + '</span></div>';
-            }
-          } else {
-            var text = nameEl.textContent;
-            nameEl.innerHTML = '<span class="exercise-letter">' + letter + '</span>' + text;
+        if (isSuperset) {
+          var cleaned = raw.replace(/^superset[:\-]\s*/i, '');
+          var parts = cleaned.split(/\s*(?:&|\/| and )\s*/i);
+          if (parts.length >= 2) {
+            nameEl.innerHTML =
+              '<span class="superset-tag">Superset</span>' +
+              '<div class="superset-line"><span class="superset-label">' + letter + '1</span><span class="superset-name">' + parts[0].trim() + '</span></div>' +
+              '<div class="superset-line"><span class="superset-label">' + letter + '2</span><span class="superset-name">' + parts[1].trim() + '</span></div>';
           }
-        });
+        } else {
+          nameEl.innerHTML = '<span class="exercise-letter">' + letter + '</span>' + raw;
+        }
       });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.day-section').forEach(applyExerciseLabels);
     });
 
     // ── Superset: duplicate set inputs for A2 ────────────────────────────────
@@ -1362,7 +1364,7 @@
           var rpeEl   = card.querySelector('.badge-rpe');
           var cuesEl  = card.querySelector('.ai-note-content');
           var restEl  = card.querySelector('.rest-pill');
-          var name     = nameEl   ? nameEl.textContent.trim()                                             : '';
+          var name     = nameEl   ? (nameEl.dataset.rawName || nameEl.textContent).trim()                 : '';
           var setsReps = badgeEl  ? badgeEl.textContent.trim()                                            : '3 × 8-12';
           var rpeText  = rpeEl    ? rpeEl.textContent.replace('ⓘ','').replace('RPE','').replace(/\n.*$/s,'').trim() : '8';
           var cues     = cuesEl   ? cuesEl.textContent.trim()                                             : '';
@@ -1392,7 +1394,7 @@
           var rpeEl   = card.querySelector('.badge-rpe');
           var cuesEl  = card.querySelector('.ai-note-content');
           var restEl  = card.querySelector('.rest-pill');
-          if (nameEl)  nameEl.textContent  = ex.name || nameEl.textContent;
+          if (nameEl && ex.name) { nameEl.dataset.rawName = ex.name; nameEl.textContent = ex.name; }
           if (badgeEl) badgeEl.textContent = (ex.sets || 3) + ' × ' + (ex.reps || '8-12');
           // Also update visible metric blocks
           var visSetEl = card.querySelector('.metric-sets .metric-val');
@@ -1407,6 +1409,8 @@
           if (cuesEl) cuesEl.textContent = ex.cues || cuesEl.textContent;
           if (restEl) restEl.textContent = 'Rest: ' + (ex.rest || restEl.textContent.replace('Rest:','').trim());
         });
+        // Re-apply letter/superset formatting after name updates
+        applyExerciseLabels(daySection);
         // Update day header exercise count
         var metaNum = daySection.querySelector('.day-meta-num');
         var metaLbl = daySection.querySelector('.day-meta-lbl');
