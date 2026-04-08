@@ -134,9 +134,22 @@ class Critic:
                 payload["detail"] = True
             self.on_status(payload)
 
-    def run_single_critique(self, program, task_type, previous_results=None):
-        """Run one critique pass with its own RAG retrieval."""
-        previous_results = previous_results or {}
+    def run_single_critique(self, task_type: str, program: dict) -> tuple[str, str | None]:
+        """Run a single critique task and return (task_type, feedback_or_None).
+
+        Parameters
+        ----------
+        task_type:
+            Key into ``self.task_types`` (e.g. ``"volume"``, ``"exercise_selection"``).
+        program:
+            LangGraph state dict. Must contain 'user-input' and 'draft'.
+
+        Returns
+        -------
+        tuple[str, str | None]
+            The task type and its feedback string, or None if the program passed.
+        """
+        previous_results = {}
         label = self._task_labels.get(task_type, task_type.replace('_', ' ').title())
         self._emit(f"{label}...")
         logger.info("Running %s critique", task_type.upper())
@@ -232,15 +245,31 @@ class Critic:
 
         return task_type, processed
 
-    def critique(self, program: dict[str, str | None]) -> dict[str, str | None]:
-        """Run all critique tasks in parallel, each with its own RAG retrieval."""
+    def critique(self, program: dict) -> dict:
+        """Run all critique tasks in parallel and aggregate feedback.
+
+        Executes each task in ``self.task_types`` concurrently via
+        ``ThreadPoolExecutor``. Aggregates non-None feedback into a single
+        string stored in ``program['feedback']``.
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict.
+
+        Returns
+        -------
+        dict
+            Updated state with 'feedback' set to the combined critique string,
+            or None if the program passed all checks.
+        """
         logger.info("========== CRITIQUE PROCESS STARTED ==========")
 
         # Run all tasks concurrently — tasks are independent (dependency context is
         # informational only and not required for correctness).
         with ThreadPoolExecutor(max_workers=len(self.task_types)) as executor:
             futures = {
-                executor.submit(self.run_single_critique, program, task_type, {}): task_type
+                executor.submit(self.run_single_critique, task_type, program): task_type
                 for task_type in self.task_types
             }
             raw_results: dict[str, str | None] = {}
