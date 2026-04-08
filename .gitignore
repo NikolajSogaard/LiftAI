@@ -7,6 +7,7 @@ agent_system/setup_api.py
 .conda
 .vscode/
 .claude/worktrees/
+CLAUDE.md
 .claude/settings.local.json
 requirements_full.txt
 
