@@ -6,9 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 import faiss
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from config import FAISS_DIR, RAG_TOP_K
 
-FAISS_DIR = os.path.join("Data", "faiss_db")
+logger = logging.getLogger(__name__)
 
 _embedding_model = None
 _generate_response = None
@@ -57,11 +57,11 @@ def _embed_uncached(text: str) -> np.ndarray:
 
 
 def _generate_hypothetical_document(query: str) -> str:
-    """HyDE: generate a hypothetical ideal passage that would answer the query.
+    """Generate a hypothetical ideal answer for *query* using HyDE technique.
 
-    Searching with the embedding of this passage finds training-literature chunks
-    much more reliably than searching with the embedding of the raw question,
-    because the hypothetical is in 'document space' rather than 'query space'.
+    Embeds this synthetic answer rather than the raw query for significantly
+    better semantic retrieval — the embedding space for answers is denser and
+    more discriminative than for questions.
     """
     llm = _get_generate_response()
     prompt = (
@@ -91,8 +91,12 @@ def _grade_chunk(chunk: str, query: str, grader) -> bool:
 
 
 def _crag_filter(hits: list, query: str) -> list:
-    """Run CRAG relevance grading in parallel; return only relevant chunks.
-    Falls back to full hit list if all chunks are graded irrelevant."""
+    """Filter retrieved chunks by relevance using the CRAG technique.
+
+    Runs a lightweight LLM relevance check on each chunk in parallel.
+    Chunks graded irrelevant are dropped. If all chunks are filtered,
+    returns the original hits as a fallback.
+    """
     grader = _get_generate_response()
 
     def _grade(hit):
@@ -111,7 +115,7 @@ def _crag_filter(hits: list, query: str) -> list:
     return relevant
 
 
-def retrieve_context(query: str, k: int = 8, use_hyde: bool = True, use_crag: bool = True):
+def retrieve_context(query: str, k: int = RAG_TOP_K, use_hyde: bool = True, use_crag: bool = True):
     """Retrieve top-k relevant chunks from FAISS.
 
     When use_hyde=True (default), embeds a hypothetical ideal answer instead of
@@ -151,7 +155,7 @@ def retrieve_context(query: str, k: int = 8, use_hyde: bool = True, use_crag: bo
     return context, summary, sources
 
 
-def retrieve_and_generate(query: str, specialized_instructions: str = "") -> tuple:
+def retrieve_and_generate(query: str, specialized_instructions: str = "") -> tuple[str, str]:
     """Retrieve relevant context and synthesise a response using Gemini."""
     context, summary, sources = retrieve_context(query)
     prompt = f"""You are a specialized strength training expert.
