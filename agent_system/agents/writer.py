@@ -1,8 +1,11 @@
 import json
+import logging
 import re
 from typing import Dict, Optional, Callable
 from rag_retrieval import retrieve_and_generate
 from agent_system.utils import parse_json_draft
+
+logger = logging.getLogger(__name__)
 
 class Writer:
     def __init__(
@@ -27,7 +30,9 @@ class Writer:
         self.on_status = None
         
         self.specialized_instructions = {
-            "initial": "Focus on creating the best strength training program based on the {user_input}. Consider appropriate training splits and frequency, rep-ranges, exercises that fits the user and the order of these exercises, set volume for each week and intensity."
+            "initial": "Focus on creating the best strength training program based on the {user_input}. Consider appropriate training splits and frequency, rep-ranges, exercises that fits the user and the order of these exercises, set volume for each week and intensity.",
+            "revision": "Focus on how to improve and correct an existing strength training program based on specific critique feedback. Retrieve evidence-based guidance on fixing the identified issues while preserving the parts that work well.",
+            "progression": "Focus on progressive overload principles and autoregulation strategies. Retrieve guidance on when to increase weight versus reps, how to interpret RPE feedback, and how to adjust training load week over week.",
         }
     
     def _emit(self, message, detail=False):
@@ -38,10 +43,14 @@ class Writer:
             self.on_status(payload)
 
     def get_retrieval_query(self, program: dict[str, str | None]) -> str:
+        user_input = program.get('user-input', '')
         if self.writer_type == "initial":
-            user_input = program.get('user-input', '')
             return f"Best practices for designing a strength training program for someone with these goals and preferences: {user_input}"
-        return ""
+        if self.writer_type == "progression":
+            return f"Progressive overload principles and autoregulation strategies for strength training: {user_input}"
+        if self.writer_type == "revision":
+            return f"How to revise and improve a strength training program based on feedback: {user_input}"
+        return f"Strength training program design best practices: {user_input}"
 
     def format_previous_week_program(self, program: dict[str, str | None]) -> str:
         """Extract and format the previous week's program as JSON for progression prompts."""
@@ -77,20 +86,19 @@ class Writer:
             raise ValueError(f"Writer '{self.writer_type}' has no task for initial creation")
 
         enhanced_task = self.task
-        if self.writer_type == "initial" and query:
-            print("\n--- Writer retrieving context ---")
+        if query:
+            logger.info("Writer retrieving context for %s", self.writer_type)
             self._emit("Retrieving context from training literature...")
             result, _ = self.retrieval_fn(query, instructions)
             enhanced_task += f"\nRelevant context from training literature:\n{result}\n"
-            # Show what the RAG retrieved
             self._emit(f"Retrieved context:\n{result.strip()}", detail=True)
-        
+
         prompt = self._build_prompt([
             self.role,
             {'role': 'user', 'content': enhanced_task.format(program['user-input'], self.structure)},
         ])
-        
-        print("Generating initial program...")
+
+        logger.info("Generating initial program...")
         self._emit("Generating initial program draft...")
         draft = self.model(prompt)
         if isinstance(draft, str):
@@ -112,7 +120,7 @@ class Writer:
         previous_program_formatted = None
         
         if is_progression:
-            print("Progression mode: maintaining structure, updating suggestions")
+            logger.info("Progression mode: maintaining structure, updating suggestions")
             if self.task_progression is not None:
                 revision_task = self.task_progression
                 previous_program_formatted = self.format_previous_week_program(program)
@@ -125,11 +133,24 @@ class Writer:
                     "- NO additional text or explanations whatsoever\n"
                 )
         
+        # RAG retrieval for revision/progression context
+        query = self.get_retrieval_query(program)
+        if query:
+            logger.info("Writer retrieving context for %s", current_type)
+            self._emit("Retrieving context from training literature...")
+            try:
+                result, _ = self.retrieval_fn(query, self.specialized_instructions.get(current_type, ""))
+                revision_task += f"\nRelevant context from training literature:\n{result}\n"
+                self._emit(f"Retrieved context:\n{result.strip()}", detail=True)
+            except Exception:
+                logger.warning("RAG retrieval failed in revise(), continuing without context", exc_info=True)
+
         # Build prompt — prepend Reflexion lessons if any exist
         if is_progression and previous_program_formatted:
             content = revision_task.format(previous_program_formatted, program['feedback'], self.structure)
         else:
-            content = revision_task.format(program['draft'], program['feedback'], self.structure)
+            draft_str = json.dumps(program['draft'], indent=2) if isinstance(program['draft'], dict) else program['draft']
+        content = revision_task.format(draft_str, program['feedback'], self.structure)
 
         lessons = program.get('lessons', [])
         if lessons:
@@ -139,21 +160,21 @@ class Writer:
         
         prompt = self._build_prompt([self.role, {'role': 'user', 'content': content}])
 
-        print("Revising program...")
+        logger.info("Revising program...")
         self._emit("Revising program based on critic feedback...")
         try:
             draft = self.model(prompt)
-            
+
             # Merge progression suggestions back into original structure
             if is_progression and isinstance(draft, dict) and 'weekly_program' in draft:
                 draft = self._merge_progression(program, draft)
-            
+
             # Handle string responses
             if isinstance(draft, str):
                 draft = self._parse_string_draft(draft)
 
         except Exception as e:
-            print(f"Error during revision: {e}")
+            logger.exception("Error during revision")
             draft = {"weekly_program": {"Day 1": []}, "message": f"Error: {e}"}
 
         # Single-pass normalization for progression format
@@ -268,16 +289,16 @@ class Writer:
 
     def __call__(self, program: dict[str, str | None]) -> dict[str, str | None]:
         if self.writer_type == "progression" and 'feedback' in program:
-            print("Progression writer (Week 2+)")
+            logger.info("Progression writer (Week 2+)")
             draft = self.revise(program, override_type="progression")
         elif program.get('draft') is None:
-            print("Initial program creation")
+            logger.info("Initial program creation")
             draft = self.write(program)
         elif 'feedback' in program:
-            print("Revising based on feedback")
+            logger.info("Revising based on feedback")
             draft = self.revise(program, override_type="revision")
         else:
-            print("Fallback: initial write")
+            logger.info("Fallback: initial write")
             draft = self.write(program)
 
         program['draft'] = draft

@@ -1,6 +1,9 @@
 from __future__ import annotations
+import logging
 from typing import Any
 from langgraph.graph import StateGraph, START, END
+
+logger = logging.getLogger(__name__)
 
 from .agents import (
     Writer,
@@ -47,7 +50,7 @@ class ProgramGenerator:
         program.setdefault('iteration_count', 0)
         program['iteration_count'] += 1
         if program['iteration_count'] >= self.max_iterations:
-            print(f"Max iterations reached ({self.max_iterations}), accepting.")
+            logger.info("Max iterations reached (%d), accepting.", self.max_iterations)
             return 'accept'
         return 'accept' if program['feedback'] is None else 'reflect'
 
@@ -69,13 +72,13 @@ class ProgramGenerator:
             elif isinstance(lesson, dict):
                 lesson = str(lesson)
         except Exception as e:
-            print(f"Reflection failed: {e}")
+            logger.exception("Reflection failed")
             lesson = "Address all critic feedback systematically."
 
         lessons = program.get('lessons', [])
         lessons.append(f"Attempt {iteration}: {lesson}")
         program['lessons'] = lessons
-        print(f"\n=== REFLEXION (attempt {iteration}) ===\n{lesson}\n")
+        logger.info("=== REFLEXION (attempt %d) ===\n%s", iteration, lesson)
         if self.on_status:
             self.on_status({"step": "critic", "message": f"Reflexion: {lesson}"})
         return program

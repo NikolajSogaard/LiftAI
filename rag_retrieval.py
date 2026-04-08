@@ -1,9 +1,12 @@
+import logging
 import os
 import pickle
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import faiss
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 FAISS_DIR = os.path.join("Data", "faiss_db")
 
@@ -83,7 +86,8 @@ def _grade_chunk(chunk: str, query: str, grader) -> bool:
         result = grader(prompt).strip().lower()
         return result.startswith('y')
     except Exception:
-        return True  # keep on failure
+        logger.warning("CRAG grading failed for chunk, dropping it", exc_info=True)
+        return False
 
 
 def _crag_filter(hits: list, query: str) -> list:
@@ -99,11 +103,11 @@ def _crag_filter(hits: list, query: str) -> list:
 
     relevant = [h for h, keep in zip(hits, grades) if keep]
     if not relevant:
-        print("CRAG: all chunks graded irrelevant — keeping top 3 as fallback")
+        logger.warning("CRAG: all chunks graded irrelevant — keeping top 3 as fallback")
         return hits[:3]
     removed = len(hits) - len(relevant)
     if removed:
-        print(f"CRAG: filtered {removed}/{len(hits)} irrelevant chunks")
+        logger.info("CRAG: filtered %d/%d irrelevant chunks", removed, len(hits))
     return relevant
 
 
@@ -120,7 +124,7 @@ def retrieve_context(query: str, k: int = 8, use_hyde: bool = True, use_crag: bo
         try:
             embed_text = _generate_hypothetical_document(query)
         except Exception as e:
-            print(f"HyDE generation failed, falling back to direct query embedding: {e}")
+            logger.warning("HyDE generation failed, falling back to direct query embedding: %s", e)
             embed_text = query
         vec = _embed_uncached(embed_text).copy().reshape(1, -1)
     else:

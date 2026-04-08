@@ -13,7 +13,9 @@ LiftAI is a multi-agent AI system that generates personalized strength training 
 - **LLM:** Google Gemini API (`google-genai` SDK) — default model `gemini-3-flash-preview`
 - **RAG:** FAISS (vector search), LangChain (text splitting), PyMuPDF (PDF parsing)
 - **Embeddings:** Google Gemini `gemini-embedding-001`
-- **Frontend:** HTML/CSS/JS templates, Server-Sent Events (SSE) for real-time progress
+- **Frontend:** HTML/CSS/JS templates (inline styles, no static/ dir), Server-Sent Events (SSE) for real-time progress
+- **Fonts:** Barlow Condensed (headings/labels), DM Mono (numeric data), DM Sans (body) — loaded via Google Fonts
+- **Design tokens:** `--orange #FF6B2B` (CTAs/accents), `--blue #38BDF8` (data numbers), `--bg #0D0D0D`
 
 ## Project Structure
 
@@ -30,6 +32,7 @@ agent_system/
     critique_task.py    # Critic task configuration
   setup_api.py          # Google Gemini API client (git-ignored)
   utils.py              # JSON parsing utilities
+  chatbot.py            # Gemini-powered chatbot for live program editing (/chat endpoint)
 prompts/
   writer_prompts.py     # Writer role/task prompts
   critic_prompts.py     # Critic evaluation criteria
@@ -100,3 +103,6 @@ DEFAULT_CONFIG = {
 - `Data/` is almost entirely git-ignored except screenshots
 - No automated test suite — testing is done via predefined personas in `Data/personas/personas_vers2.json`
 - PDF extraction runs in a subprocess with a 30-second timeout to prevent hangs
+- Frontend CSS/JS is fully inline in each HTML template — no `static/` directory exists
+- `index.html` has hidden `.badge-sets` / `.badge-rpe` spans (display:none) that JS reads for DOM extraction — do not remove them
+- `agent_system/chatbot.py` powers the `/chat` route for live program editing via the floating chat panel

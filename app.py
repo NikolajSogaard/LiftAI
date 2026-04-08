@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response, copy_current_request_context
 from flask_session import Session
 import json
+import logging
 import os
 import argparse
 import tempfile
@@ -9,9 +10,16 @@ import uuid
 import threading
 import queue
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 from agent_system import (
     setup_llm,
     ProgramGenerator,
+    ProgramChatbot,
     Writer,
     Critic,
     Editor,
@@ -27,7 +35,7 @@ from prompts import (
 from rag_retrieval import retrieve_and_generate
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("SESSION_SECRET_KEY") or os.urandom(24)
 
 # Configure server-side sessions
 app.config["SESSION_TYPE"] = "filesystem"
@@ -51,6 +59,7 @@ def _get_personas() -> dict:
             with open('Data/personas/personas_vers2.json') as f:
                 _personas_cache = json.load(f)["Personas"]
         except Exception:
+            logger.warning("Failed to load personas file", exc_info=True)
             _personas_cache = {}
     return _personas_cache
 
@@ -212,7 +221,7 @@ def parse_program(program_output):
                            "cues": "Please try generating a new program."}]}
 
     except Exception as e:
-        print(f"Error parsing program: {e}")
+        logger.exception("Error parsing program")
         return {"Day 1": [{"name": "Error parsing program", "sets": 0, "reps": "0",
                            "target_rpe": 0, "rest": "N/A", "cues": str(e)}]}
 
@@ -267,6 +276,7 @@ def generate_program():
                 
                 q.put({"step": "done", "message": "Program generated successfully!", "job_id": job_id})
             except Exception as e:
+                logger.exception("Program generation failed")
                 q.put({"step": "error", "message": str(e)})
             finally:
                 _generation_queues.pop(job_id, None)
@@ -418,6 +428,7 @@ def next_week():
 # Ensure SavedPrograms directory exists
 SAVED_PROGRAMS_DIR = os.path.join('Data', 'SavedPrograms')
 os.makedirs(SAVED_PROGRAMS_DIR, exist_ok=True)
+_SAFE_PROGRAMS_DIR = os.path.realpath(SAVED_PROGRAMS_DIR)
 
 @app.route('/save_program', methods=['POST'])
 def save_program():
@@ -468,7 +479,7 @@ def list_saved_programs():
                         'current_week': data.get('current_week', 1)
                     })
             except Exception as e:
-                print(f"Error reading {fname}: {e}")
+                logger.warning("Error reading saved program %s: %s", fname, e)
         programs.sort(key=lambda x: x.get('date', ''), reverse=True)
         return jsonify({'success': True, 'programs': programs})
     except Exception as e:
@@ -480,8 +491,11 @@ def load_program():
         filename = request.form.get('filename')
         if not filename:
             return jsonify({'success': False, 'message': 'No program selected'})
-        
-        filepath = os.path.join(SAVED_PROGRAMS_DIR, filename)
+
+        filepath = os.path.realpath(os.path.join(SAVED_PROGRAMS_DIR, filename))
+        if not filepath.startswith(_SAFE_PROGRAMS_DIR + os.sep):
+            return jsonify({'success': False, 'message': 'Invalid filename'})
+
         if not os.path.exists(filepath):
             return jsonify({'success': False, 'message': 'Program file not found'})
         
@@ -500,6 +514,53 @@ def load_program():
         return jsonify({'success': True, 'redirect': url_for('index')})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error loading program: {e}'})
+
+_chatbot: ProgramChatbot | None = None
+
+def _get_chatbot() -> ProgramChatbot:
+    global _chatbot
+    if _chatbot is None:
+        from agent_system.setup_api import _get_client
+        client = _get_client()
+        _chatbot = ProgramChatbot(model_name=DEFAULT_CONFIG['model'], client=client)
+    return _chatbot
+
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    if 'program' not in session:
+        return jsonify({'error': 'No active program. Generate a program first.'}), 400
+
+    data = request.get_json(silent=True) or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Empty message.'}), 400
+
+    # Frontend sends back the current (possibly already edited) program
+    program = data.get('program') or session.get('program', {})
+    history = data.get('history', [])
+
+    try:
+        chatbot = _get_chatbot()
+        result = chatbot.chat(message=message, program=program, history=history)
+    except Exception as e:
+        logger.exception("Chat request failed")
+        return jsonify({'error': str(e)}), 500
+
+    # Persist any edits back to the session
+    if result.get('updated_program'):
+        session['program'] = result['updated_program']
+        # Keep all_programs in sync — update the current week entry
+        all_programs = session.get('all_programs', [])
+        current_week = session.get('current_week', 1)
+        for wp in all_programs:
+            if wp.get('week') == current_week:
+                wp['program'] = result['updated_program']
+                break
+        session['all_programs'] = all_programs
+
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)

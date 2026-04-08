@@ -1,6 +1,9 @@
 """Shared utilities for the agent system."""
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def parse_json_draft(data) -> dict:
@@ -37,7 +40,7 @@ def _parse_json_string(text: str) -> dict:
             if isinstance(parsed, dict):
                 return parsed.get('weekly_program', parsed)
         except (json.JSONDecodeError, IndexError):
-            pass
+            logger.warning("Failed to parse markdown JSON block, trying direct parse")
 
     # Try direct JSON parse
     stripped = text.strip()
@@ -47,6 +50,6 @@ def _parse_json_string(text: str) -> dict:
             if isinstance(parsed, dict):
                 return parsed.get('weekly_program', parsed)
         except json.JSONDecodeError:
-            pass
+            logger.error("Failed to parse JSON string: %.200s", stripped)
 
     return {}

@@ -141,7 +141,7 @@ NOTE: Consider any changes suggested by previous critiques (frequency_and_split,
    - If volume is too high: Either reduce the number of sets for specific exercises OR completely remove certain exercises. Specify exactly which exercises to modify and from which days
    - If volume is too low: Either increase the number of sets for existing exercises OR add new exercises. Specify exactly which exercises to modify or add, with specific set/rep recommendations
    - If movement pattern balance is off: Identify which patterns are overemphasized or underemphasized, then suggest specific exercises to add, remove, or modify numbers of sets to create proper balance. Specify exactly which adjustments to make on which training days
-        - FOR POWERLIFTING or Stregth fokused goal: Ensure the main lifts are trained with sufficient volume and frequency, and that accessory work complements the main lifts without overloading them
+        - FOR POWERLIFTING or Strength focused goal: Ensure the main lifts are trained with sufficient volume and frequency, and that accessory work complements the main lifts without overloading them
         - FOR other goals: ensure the volume is balanced across all muscle groups and movement patterns are are spread evenly throughout the week
    - Ensure volume for each movement pattern is distributed appropriately across multiple training days rather than concentrated on a single day
    - IMPORTANT: 
