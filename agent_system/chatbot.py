@@ -4,6 +4,7 @@ import json
 import logging
 from google import genai
 from google.genai import types
+from config import MAX_CHAT_MESSAGE_CHARS, MAX_CHAT_HISTORY_TURNS
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +114,23 @@ class ProgramChatbot:
         self.client = client
         self._tool = types.Tool(function_declarations=_FUNCTION_DECLARATIONS)
 
-    def _apply_function_call(self, program: dict, fn_name: str, args: dict) -> tuple[dict, str]:
-        """Execute a function call against the program dict. Returns (updated_program, result_text)."""
+    def _apply_function_call(self, fn_name: str, args: dict, program: dict) -> tuple[dict, str]:
+        """Apply a tool function call to the program state.
+
+        Parameters
+        ----------
+        fn_name:
+            The tool function name returned by Gemini (e.g. ``"update_exercise"``).
+        args:
+            Keyword arguments from the function call.
+        program:
+            The current ``weekly_program`` dict ``{day: [exercise_dicts]}``.
+
+        Returns
+        -------
+        tuple[dict, str]
+            Updated program dict and a human-readable description of the change.
+        """
         program = {day: list(exs) for day, exs in program.items()}  # shallow copy
 
         if fn_name == "edit_exercise":
@@ -174,6 +190,12 @@ class ProgramChatbot:
             updated_program : dict | None — modified program, or None if unchanged
             function_results : list — descriptions of edits made
         """
+        if len(message) > MAX_CHAT_MESSAGE_CHARS:
+            message = message[:MAX_CHAT_MESSAGE_CHARS]
+            logger.warning("chat() message truncated to %d chars", MAX_CHAT_MESSAGE_CHARS)
+        if history and len(history) > MAX_CHAT_HISTORY_TURNS:
+            history = history[-MAX_CHAT_HISTORY_TURNS:]
+            logger.warning("chat() history trimmed to last %d turns", MAX_CHAT_HISTORY_TURNS)
         history = history or []
         updated_program = None
         function_results = []
@@ -196,11 +218,14 @@ class ProgramChatbot:
                 contents=contents,
                 config=config,
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Chatbot Gemini call failed")
-            return {"reply": f"Sorry, I encountered an error: {e}", "updated_program": None, "function_results": []}
+            return {"reply": "Sorry, I encountered an error. Please try again.", "updated_program": None, "function_results": []}
 
         # Collect all parts from the response
+        if not response.candidates:
+            logger.error("Chatbot received empty candidates list from Gemini")
+            return {"reply": "Sorry, I received an empty response. Please try again.", "updated_program": None, "function_results": []}
         candidate = response.candidates[0]
         parts = candidate.content.parts
 
@@ -211,7 +236,7 @@ class ProgramChatbot:
             if hasattr(part, 'function_call') and part.function_call:
                 fc = part.function_call
                 args = dict(fc.args) if fc.args else {}
-                current_program, result_text = self._apply_function_call(current_program, fc.name, args)
+                current_program, result_text = self._apply_function_call(fc.name, args, current_program)
                 function_results.append(result_text)
                 fn_call_parts.append((fc.name, args, result_text))
                 updated_program = current_program
