@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def load_pdfs(path: str) -> list[str]:
+def load_pdfs(path: str) -> list[dict]:
     """Read all PDFs using a subprocess per page to avoid hangs."""
     script = r'''
 import sys, json, fitz
@@ -61,7 +61,7 @@ print(json.dumps(page.get_text()))
     return docs
 
 
-def chunk_documents(docs: list[str], chunk_size=1000, chunk_overlap=200) -> list[str]:
+def chunk_documents(docs: list[dict], chunk_size=1000, chunk_overlap=200) -> list[dict]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -106,7 +106,7 @@ def save_index(index, texts, metadatas, out_dir):
     logger.info("Saved FAISS index + metadata to %s/", out_dir)
 
 
-def build_index(chunks: list[str]) -> None:
+def build_index(chunks: list[dict]) -> None:
     from agent_system.setup_api import setup_embeddings
 
     if not chunks:
