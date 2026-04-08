@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 from langgraph.graph import StateGraph, START, END
+from config import LESSON_MAX_CHARS
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class ProgramGenerator:
         try:
             lesson = self.writer.model(prompt)
             if isinstance(lesson, str):
-                lesson = lesson.strip()[:300]
+                lesson = lesson.strip()[:LESSON_MAX_CHARS]
             elif isinstance(lesson, dict):
                 lesson = str(lesson)
         except Exception as e:
@@ -84,6 +85,19 @@ class ProgramGenerator:
         return program
 
     def create_program(self, user_input: str) -> dict[str, Any]:
+        """Run the full Writer → Critic → Editor LangGraph workflow.
+
+        Parameters
+        ----------
+        user_input:
+            The raw user prompt (may include persona info prepended by app.py).
+
+        Returns
+        -------
+        dict
+            Final LangGraph state dict. The formatted program is at
+            ``result['formatted']['weekly_program']``.
+        """
         # Propagate status callback to agents
         if self.on_status:
             self.writer.on_status = self.on_status
