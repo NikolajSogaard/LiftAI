@@ -138,6 +138,8 @@ New file: `agent_system/analytics.py`. Pure Python, no LLM calls.
 
 Thresholds are configurable constants in `config.py`.
 
+**Deload and mesocycle counting:** A deload triggered mid-mesocycle is an *inserted* recovery week — it does not count toward the mesocycle length. After the deload, the mesocycle resumes from where it left off. For example, if a deload triggers at week 3 of a 4-week block, the sequence is: Week 3 -> Deload -> Week 4 (mesocycle review).
+
 ---
 
 ## Section 3: Analyst Agent
