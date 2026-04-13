@@ -23,7 +23,9 @@ from agent_system import (
     Writer,
     Critic,
     Editor,
+    Analyst,
 )
+from agent_system.generator import ProgressionProgramGenerator
 
 from prompts import (
     WriterPromptSettings,
@@ -43,6 +45,7 @@ from config import (
     DEFAULT_MAX_ITERATIONS,
     MAX_USER_INPUT_CHARS,
     QUEUE_TIMEOUT,
+    DEFAULT_MESOCYCLE_LENGTH,
 )
 
 app = Flask(__name__)
@@ -194,6 +197,128 @@ def get_program_generator(config: dict | None = None) -> "ProgramGenerator":
         writer=writer, critic=critic, editor=editor,
         max_iterations=config.get('max_iterations', 2)
     )
+
+def get_progression_generator(config: dict, writer_type: str = "progression") -> ProgressionProgramGenerator:
+    """Build a ProgressionProgramGenerator for week 2+ generation."""
+    writer_settings_key = writer_type
+    writer_prompt_settings = WRITER_PROMPT_SETTINGS.get(writer_settings_key, WRITER_PROMPT_SETTINGS['progression'])
+
+    critic_setting_key = 'week1' if writer_type == 'new_block' else 'progression'
+    critic_prompt_settings = CRITIC_PROMPT_SETTINGS[critic_setting_key]
+
+    llm_writer = setup_llm(
+        model=config['model'],
+        respond_as_json=True,
+        temperature=config['writer_temperature'],
+        top_p=config['writer_top_p'],
+        thinking_budget=config.get('thinking_budget'),
+    )
+    llm_critic = setup_llm(
+        model=config.get('critic_model', config['model']),
+        max_tokens=config['max_tokens'],
+        respond_as_json=False,
+    )
+    llm_analyst = setup_llm(
+        model=config.get('critic_model', config['model']),
+        respond_as_json=True,
+    )
+
+    task_revision = writer_prompt_settings.task_revision
+    if not task_revision and 'revision' in WRITER_PROMPT_SETTINGS:
+        task_revision = WRITER_PROMPT_SETTINGS['revision'].task_revision
+
+    writer = Writer(
+        model=llm_writer,
+        role=writer_prompt_settings.role,
+        structure=writer_prompt_settings.structure or WRITER_PROMPT_SETTINGS['initial'].structure,
+        task=writer_prompt_settings.task,
+        task_revision=task_revision,
+        task_progression=getattr(writer_prompt_settings, 'task_progression', None),
+        writer_type=writer_type,
+        retrieval_fn=retrieve_and_generate,
+    )
+    critic = Critic(
+        model=llm_critic,
+        role=critic_prompt_settings.role,
+        tasks=getattr(critic_prompt_settings, 'tasks', None),
+        retrieval_fn=retrieve_and_generate,
+    )
+    editor = Editor()
+    analyst = Analyst(model=llm_analyst, retrieval_fn=retrieve_and_generate)
+
+    return ProgressionProgramGenerator(
+        writer=writer, critic=critic, editor=editor, analyst=analyst,
+        mesocycle_length=config.get('mesocycle_length', DEFAULT_MESOCYCLE_LENGTH),
+        max_iterations=config.get('max_iterations', 1),
+    )
+
+
+def _build_block_summary(all_programs: list[dict], mesocycle: int) -> dict:
+    """Build a condensed summary of a completed mesocycle."""
+    block_weeks = [w for w in all_programs if w.get("mesocycle") == mesocycle]
+    if not block_weeks:
+        return {}
+
+    exercise_data: dict[str, dict] = {}
+    exercises_used: list[str] = []
+
+    for week_record in block_weeks:
+        feedback = week_record.get("feedback") or {}
+        for day, exercises in feedback.items():
+            for ex in exercises:
+                name = ex.get("name", "")
+                if not name:
+                    continue
+                if name not in exercises_used:
+                    exercises_used.append(name)
+
+                sets = ex.get("sets_data", [])
+                if not sets:
+                    continue
+
+                best_weight, best_reps = 0, 0
+                for s in sets:
+                    try:
+                        w = float(s.get("weight", 0) or 0)
+                        r = float(s.get("reps", 0) or 0)
+                        if w > best_weight:
+                            best_weight, best_reps = w, r
+                    except (ValueError, TypeError):
+                        pass
+
+                if best_weight == 0:
+                    continue
+
+                if name not in exercise_data:
+                    exercise_data[name] = {
+                        "start_weight": best_weight, "start_reps": best_reps,
+                        "end_weight": best_weight, "end_reps": best_reps,
+                    }
+                else:
+                    exercise_data[name]["end_weight"] = best_weight
+                    exercise_data[name]["end_reps"] = best_reps
+
+    key_lifts = {}
+    for name, data in exercise_data.items():
+        if data["end_weight"] > data["start_weight"]:
+            trend = "progressing"
+        elif data["end_weight"] < data["start_weight"]:
+            trend = "regressing"
+        else:
+            trend = "stalled" if data["end_reps"] <= data["start_reps"] else "progressing"
+        key_lifts[name] = {
+            "start": f"{data['start_weight']}kg x {int(data['start_reps'])}",
+            "end": f"{data['end_weight']}kg x {int(data['end_reps'])}",
+            "trend": trend,
+        }
+
+    return {
+        "mesocycle": mesocycle,
+        "weeks": len(block_weeks),
+        "key_lifts": key_lifts,
+        "exercises_used": exercises_used,
+    }
+
 
 def parse_program(program_output):
     """Extract weekly_program from various nested output formats."""
@@ -357,7 +482,12 @@ def generation_complete(job_id):
     session['persona'] = result['persona']
     session['feedback'] = {}
     session['current_week'] = 1
-    session['all_programs'] = [{'week': 1, 'program': result['program']}]
+    session['mesocycle'] = 1
+    session['week_in_mesocycle'] = 1
+    session['mesocycle_length'] = DEFAULT_MESOCYCLE_LENGTH
+    session['block_summaries'] = []
+    session['pending_review'] = None
+    session['all_programs'] = [{'week': 1, 'mesocycle': 1, 'week_in_mesocycle': 1, 'type': 'normal', 'program': result['program']}]
     
     return redirect(url_for('index'))
 
@@ -409,66 +539,209 @@ def next_week():
     current_week = session.get('current_week', 1)
     feedback_data = _parse_feedback_form(program, request.form, key_prefix=f"{current_week}_")
     session['feedback'] = feedback_data
-    current_program = session['raw_program']
 
+    # Enrich current week's record with feedback
+    all_programs = session.get('all_programs', [])
+    for wp in all_programs:
+        if wp.get('week') == current_week:
+            wp['feedback'] = feedback_data
+            break
+
+    current_program = session['raw_program']
     if 'formatted' in current_program and isinstance(current_program['formatted'], dict):
         if 'weekly_program' in current_program['formatted']:
             if isinstance(current_program, dict) and 'weekly_program' not in current_program:
                 current_program['weekly_program'] = current_program['formatted']['weekly_program']
-    
-    current_week = session.get('current_week', 1)
-    if current_week == 1:
-        session['original_program_structure'] = session['program']
 
-    current_program['week_number'] = current_week
-    current_program['feedback'] = feedback_data
+    mesocycle = session.get('mesocycle', 1)
+    week_in_mesocycle = session.get('week_in_mesocycle', current_week)
+    mesocycle_length = session.get('mesocycle_length', DEFAULT_MESOCYCLE_LENGTH)
+    block_summaries = session.get('block_summaries', [])
 
-    next_week_input = create_next_week_prompt(
-        program=current_program,
-        feedback=feedback_data,
-        user_input=session.get('user_input', ''),
-        current_week=current_week,
-        persona=session.get('persona_data') if session.get('persona') else None
-    )
+    # Build mesocycle history (only weeks in current mesocycle)
+    current_mesocycle_history = [w for w in all_programs if w.get('mesocycle', 1) == mesocycle]
 
+    user_input = session.get('user_input', '')
     if session.get('persona'):
         selected_persona = _get_personas().get(session['persona'])
         if selected_persona:
-            next_week_input += f"\nTarget Persona: {selected_persona}"
+            user_input += f"\nTarget Persona: {selected_persona}"
 
-    new_week = current_week + 1
     config = DEFAULT_CONFIG.copy()
-    config['critic_prompt_settings'] = 'week2plus'
-    config['week_number'] = new_week
-    
-    program_generator = get_program_generator(config)
-    program_result = program_generator.create_program(user_input=next_week_input)
+    config['mesocycle_length'] = mesocycle_length
 
-    if new_week > 1 and 'original_program_structure' in session:
-        original_structure = session['original_program_structure']
-        new_program = parse_program(program_result.get('formatted'))
+    # Create SSE job
+    job_id = uuid.uuid4().hex[:12]
+    q = queue.Queue()
+    _generation_queues[job_id] = q
 
-        merged_program = {}
-        for day, exercises in original_structure.items():
-            merged_program[day] = []
-            for i, exercise in enumerate(exercises):
-                preserved_exercise = exercise.copy()
-                if day in new_program and i < len(new_program[day]):
-                    new_exercise = new_program[day][i]
-                    preserved_exercise['suggestion'] = new_exercise.get('suggestion', new_exercise.get('AI Progression'))
-                merged_program[day].append(preserved_exercise)
+    @copy_current_request_context
+    def _run_progression():
+        try:
+            q.put({"step": "analytics", "message": "Analyzing training history..."})
 
-        parsed_program = merged_program
-    else:
-        parsed_program = parse_program(program_result.get('formatted'))
+            prog_gen = get_progression_generator(config, writer_type="progression")
+            prog_gen.on_status = lambda msg: q.put(msg)
+
+            state = prog_gen.create_program(
+                user_input=user_input,
+                current_mesocycle_history=current_mesocycle_history,
+                week_in_mesocycle=week_in_mesocycle,
+                previous_block_summaries=block_summaries,
+                feedback=feedback_data,
+                previous_draft=current_program.get('formatted') or current_program,
+            )
+
+            if state.get("needs_approval"):
+                # Analyst produced a decision — pause for user approval
+                _generation_results[job_id] = {
+                    "state": state,
+                    "config": config,
+                    "user_input": user_input,
+                    "current_mesocycle_history": current_mesocycle_history,
+                    "block_summaries": block_summaries,
+                }
+                q.put({
+                    "step": "review",
+                    "message": "Program review ready",
+                    "analyst_decision": state.get("analyst_decision", {}),
+                    "analytics": state.get("analytics", {}),
+                    "job_id": job_id,
+                })
+            else:
+                # Normal progression — full pipeline already ran
+                parsed_program = parse_program(state.get('formatted'))
+                new_week = current_week + 1
+                _generation_results[job_id] = {
+                    "program": parsed_program,
+                    "raw_program": state,
+                    "new_week": new_week,
+                    "review_type": "normal",
+                    "mesocycle": mesocycle,
+                    "week_in_mesocycle": week_in_mesocycle + 1,
+                }
+                q.put({"step": "done", "message": "Program generated successfully!", "job_id": job_id})
+
+        except Exception as e:
+            logger.exception("Progression generation failed")
+            q.put({"step": "error", "message": str(e)})
+        finally:
+            _generation_queues.pop(job_id, None)
+
+    thread = threading.Thread(target=_run_progression, daemon=True)
+    thread.start()
+
+    return jsonify({"job_id": job_id})
+
+
+@app.route('/approve_review', methods=['POST'])
+def approve_review():
+    """Resume generation after user approves an analyst decision."""
+    data = request.get_json(silent=True) or {}
+    job_id = data.get('job_id')
+    if not job_id or job_id not in _generation_results:
+        return jsonify({'success': False, 'message': 'Review session not found'}), 404
+
+    stored = _generation_results.pop(job_id)
+    state = stored['state']
+    config = stored['config']
+
+    review_type = state['analytics']['review_type']
+    writer_type = 'deload' if review_type == 'deload' else 'new_block'
+
+    job_id_2 = uuid.uuid4().hex[:12]
+    q = queue.Queue()
+    _generation_queues[job_id_2] = q
+
+    @copy_current_request_context
+    def _run_continuation():
+        try:
+            q.put({"step": "writer", "message": f"Generating {review_type.replace('_', ' ')} program..."})
+
+            prog_gen = get_progression_generator(config, writer_type=writer_type)
+            prog_gen.on_status = lambda msg: q.put(msg)
+
+            state['user_approved'] = True
+            result = prog_gen.continue_after_approval(state)
+
+            parsed_program = parse_program(result.get('formatted'))
+            current_week = session.get('current_week', 1)
+            mesocycle = session.get('mesocycle', 1)
+            week_in_meso = session.get('week_in_mesocycle', 1)
+
+            if review_type == 'deload':
+                new_week = current_week + 1
+                new_mesocycle = mesocycle
+                new_week_in_meso = week_in_meso  # deload doesn't advance mesocycle position
+            else:
+                new_week = current_week + 1
+                new_mesocycle = mesocycle + 1
+                new_week_in_meso = 1
+
+            _generation_results[job_id_2] = {
+                "program": parsed_program,
+                "raw_program": result,
+                "new_week": new_week,
+                "review_type": review_type,
+                "mesocycle": new_mesocycle,
+                "week_in_mesocycle": new_week_in_meso,
+                "analyst_decision": state.get("analyst_decision"),
+            }
+            q.put({"step": "done", "message": "Program generated successfully!", "job_id": job_id_2})
+
+        except Exception as e:
+            logger.exception("Post-approval generation failed")
+            q.put({"step": "error", "message": str(e)})
+        finally:
+            _generation_queues.pop(job_id_2, None)
+
+    thread = threading.Thread(target=_run_continuation, daemon=True)
+    thread.start()
+    return jsonify({"job_id": job_id_2})
+
+
+@app.route('/next_week/complete/<job_id>')
+def next_week_complete(job_id):
+    """Load next-week generation result into the session and redirect to index."""
+    result = _generation_results.pop(job_id, None)
+    if not result:
+        flash("Generation result expired or not found.")
+        return redirect(url_for('index'))
+
+    parsed_program = result['program']
+    new_week = result['new_week']
+    review_type = result['review_type']
+    new_mesocycle = result['mesocycle']
+    new_week_in_meso = result['week_in_mesocycle']
+
+    # If starting a new mesocycle, build summary of the completed one
+    old_mesocycle = session.get('mesocycle', 1)
+    if new_mesocycle > old_mesocycle:
+        all_programs = session.get('all_programs', [])
+        summary = _build_block_summary(all_programs, old_mesocycle)
+        if summary:
+            block_summaries = session.get('block_summaries', [])
+            block_summaries.append(summary)
+            session['block_summaries'] = block_summaries
 
     session['program'] = parsed_program
-    session['raw_program'] = program_result
+    session['raw_program'] = result['raw_program']
     session['feedback'] = {}
     session['current_week'] = new_week
+    session['mesocycle'] = new_mesocycle
+    session['week_in_mesocycle'] = new_week_in_meso
 
     all_programs = session.get('all_programs', [])
-    all_programs.append({'week': new_week, 'program': parsed_program})
+    week_record = {
+        'week': new_week,
+        'mesocycle': new_mesocycle,
+        'week_in_mesocycle': new_week_in_meso,
+        'type': review_type,
+        'program': parsed_program,
+    }
+    if result.get('analyst_decision'):
+        week_record['analyst_decision'] = result['analyst_decision']
+    all_programs.append(week_record)
     session['all_programs'] = all_programs
 
     flash(f"Week {new_week} program generated successfully!")
@@ -498,8 +771,12 @@ def save_program():
             'user_input': session.get('user_input', ''),
             'persona': session.get('persona', ''),
             'current_week': session.get('current_week', 1),
+            'mesocycle': session.get('mesocycle', 1),
+            'week_in_mesocycle': session.get('week_in_mesocycle', 1),
+            'mesocycle_length': session.get('mesocycle_length', DEFAULT_MESOCYCLE_LENGTH),
             'raw_program': session.get('raw_program', {}),
             'all_programs': session.get('all_programs', []),
+            'block_summaries': session.get('block_summaries', []),
         }
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(save_data, f, indent=2, ensure_ascii=False)
@@ -559,6 +836,12 @@ def load_program():
         session['current_week'] = data.get('current_week', 1)
         session['all_programs'] = data.get('all_programs', [])
         session['feedback'] = {}
+        # New mesocycle fields — backward-compatible defaults
+        session['mesocycle'] = data.get('mesocycle', 1)
+        session['week_in_mesocycle'] = data.get('week_in_mesocycle', data.get('current_week', 1))
+        session['mesocycle_length'] = data.get('mesocycle_length', DEFAULT_MESOCYCLE_LENGTH)
+        session['block_summaries'] = data.get('block_summaries', [])
+        session['pending_review'] = None
         
         return jsonify({'success': True, 'redirect': url_for('index')})
     except Exception as e:
