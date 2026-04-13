@@ -22,6 +22,13 @@ RAG_TOP_K = 8
 # ── Reflexion ────────────────────────────────────────────────────────────────
 LESSON_MAX_CHARS = 300       # truncation applied to distilled lessons
 
+# ── Mesocycle & autoregulation ──────────────────────────────────────────────
+DEFAULT_MESOCYCLE_LENGTH = 4         # weeks per training block
+STAGNATION_THRESHOLD_WEEKS = 2      # consecutive weeks with no progress → flagged
+FATIGUE_SCORE_DELOAD_TRIGGER = 0.7  # fatigue above this → deload
+STALL_RATIO_REVIEW_TRIGGER = 0.5    # fraction of exercises stalled → mesocycle review
+DELOAD_VOLUME_REDUCTION = 0.5       # reduce sets by ~50% during deload
+
 # ── Embedding retry ──────────────────────────────────────────────────────────
 EMBEDDING_RETRIES = 3
 EMBEDDING_RETRY_DELAY = 2    # seconds; doubles on each retry
