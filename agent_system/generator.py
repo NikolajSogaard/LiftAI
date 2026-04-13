@@ -6,10 +6,12 @@ from config import LESSON_MAX_CHARS
 
 logger = logging.getLogger(__name__)
 
+from .analytics import analyze_training_history
 from .agents import (
     Writer,
     Critic,
     Editor,
+    Analyst,
 )
 
 
@@ -113,3 +115,139 @@ class ProgramGenerator:
             'lessons': [],   # Reflexion memory — accumulated across revision attempts
         }
         return self.app.invoke(program)
+
+
+class ProgressionProgramGenerator:
+    """Week 2+ workflow: Analytics → [Analyst] → Writer → [Critic] → Editor.
+
+    Handles three review types:
+    - normal: skip Analyst, run progression Writer + progression Critic
+    - deload: run Analyst, run deload Writer, skip Critic
+    - mesocycle_review: run Analyst, pause for user approval, run new_block Writer + full Critic
+    """
+
+    def __init__(
+        self,
+        writer: "Writer",
+        critic: "Critic",
+        editor: "Editor",
+        analyst: "Analyst",
+        mesocycle_length: int = 4,
+        max_iterations: int = 1,
+    ):
+        self.writer = writer
+        self.critic = critic
+        self.editor = editor
+        self.analyst = analyst
+        self.mesocycle_length = mesocycle_length
+        self.max_iterations = max_iterations
+        self.on_status = None
+
+        if not hasattr(editor, 'writer') or editor.writer is None:
+            editor.writer = writer
+
+    def _propagate_status(self) -> None:
+        """Push the on_status callback to all agents."""
+        if self.on_status:
+            self.writer.on_status = self.on_status
+            self.critic.on_status = self.on_status
+            self.editor.on_status = self.on_status
+            self.analyst.on_status = self.on_status
+
+    def create_program(
+        self,
+        user_input: str,
+        current_mesocycle_history: list[dict],
+        week_in_mesocycle: int,
+        previous_block_summaries: list[dict] | None = None,
+        feedback: dict | None = None,
+        previous_draft: dict | None = None,
+    ) -> dict:
+        """Run the full progression workflow.
+
+        Returns
+        -------
+        dict
+            Final state dict. If review_type is 'deload' or 'mesocycle_review',
+            state['analyst_decision'] contains the decision document and
+            state['needs_approval'] is True — the caller must pause for user
+            approval before calling continue_after_approval().
+            If review_type is 'normal', the full pipeline runs and
+            state['formatted'] contains the final program.
+        """
+        self._propagate_status()
+
+        if self.on_status:
+            self.on_status({"step": "analytics", "message": "Analyzing training history..."})
+
+        state = {
+            "user-input": user_input,
+            "draft": previous_draft,
+            "feedback": feedback,
+            "formatted": None,
+            "iteration_count": 0,
+            "lessons": [],
+            "current_mesocycle_history": current_mesocycle_history,
+            "week_in_mesocycle": week_in_mesocycle,
+            "previous_block_summaries": previous_block_summaries or [],
+        }
+
+        # Phase 1: Analytics
+        analytics = analyze_training_history(
+            weeks=current_mesocycle_history,
+            week_in_mesocycle=week_in_mesocycle,
+            mesocycle_length=self.mesocycle_length,
+        )
+        state["analytics"] = analytics
+        state["exercise_flags"] = analytics.get("exercise_flags", {})
+
+        review_type = analytics["review_type"]
+        if self.on_status:
+            self.on_status({
+                "step": "analytics",
+                "message": f"Analysis complete — review type: {review_type}",
+            })
+        logger.info("Analytics result: review_type=%s, triggers=%s", review_type, analytics["triggers"])
+
+        if review_type == "normal":
+            # Normal progression — straight to Writer → Critic → Editor
+            state = self.writer(state)
+            state = self.critic(state)
+            state = self.editor(state)
+            return state
+
+        # Phase 2: Analyst (for deload or mesocycle_review)
+        state = self.analyst(state)
+        state["needs_approval"] = True
+        return state
+
+    def continue_after_approval(self, state: dict) -> dict:
+        """Resume the workflow after user approves the analyst decision.
+
+        Call this after the user reviews and approves the analyst_decision.
+
+        Parameters
+        ----------
+        state:
+            The state dict returned by create_program() with needs_approval=True.
+
+        Returns
+        -------
+        dict
+            Final state with 'formatted' containing the program.
+        """
+        self._propagate_status()
+        state.pop("needs_approval", None)
+
+        review_type = state["analytics"]["review_type"]
+
+        # Writer phase
+        state = self.writer(state)
+
+        # Critic phase — skip for deloads
+        if review_type != "deload":
+            state = self.critic(state)
+
+        # Editor phase
+        state = self.editor(state)
+        return state
