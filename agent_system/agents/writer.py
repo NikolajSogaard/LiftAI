@@ -34,6 +34,8 @@ class Writer:
             "initial": "Focus on creating the best strength training program based on the {user_input}. Consider appropriate training splits and frequency, rep-ranges, exercises that fits the user and the order of these exercises, set volume for each week and intensity.",
             "revision": "Focus on how to improve and correct an existing strength training program based on specific critique feedback. Retrieve evidence-based guidance on fixing the identified issues while preserving the parts that work well.",
             "progression": "Focus on progressive overload principles and autoregulation strategies. Retrieve guidance on when to increase weight versus reps, how to interpret RPE feedback, and how to adjust training load week over week.",
+            "deload": "Focus on deload week programming. Retrieve guidance on how to reduce training volume while maintaining movement patterns for recovery.",
+            "new_block": "Focus on mesocycle transitions and exercise rotation. Retrieve guidance on how to set up the first week of a new training block with fresh exercises.",
         }
     
     def _emit(self, message, detail=False):
@@ -51,6 +53,10 @@ class Writer:
             return f"Progressive overload principles and autoregulation strategies for strength training: {user_input}"
         if self.writer_type == "revision":
             return f"How to revise and improve a strength training program based on feedback: {user_input}"
+        if self.writer_type == "deload":
+            return "How to program deload weeks in strength training — volume and intensity reduction protocols"
+        if self.writer_type == "new_block":
+            return f"How to structure mesocycle transitions, exercise rotation and fresh training blocks for continued progression: {user_input}"
         return f"Strength training program design best practices: {user_input}"
 
     def format_previous_week_program(self, program: dict) -> str:
@@ -219,6 +225,98 @@ class Writer:
 
         return draft
 
+    def write_deload(self, program: dict) -> dict:
+        """Generate a deload week — same exercises, reduced volume.
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict. Must contain 'draft' (previous week's program)
+            and 'analyst_decision' with the deload plan.
+
+        Returns
+        -------
+        dict
+            The deload program draft.
+        """
+        if not self.task:
+            raise ValueError("Writer 'deload' has no task template")
+
+        analyst_decision = program.get("analyst_decision", {})
+        previous_program = self.format_previous_week_program(program)
+
+        query = self.get_retrieval_query(program)
+        enhanced_task = self.task
+        if query:
+            self._emit("Retrieving context for deload programming...")
+            try:
+                result, _ = self.retrieval_fn(query, self.specialized_instructions.get("deload", ""))
+                enhanced_task += f"\nRelevant context from training literature:\n{result}\n"
+            except Exception:
+                logger.warning("RAG retrieval failed for deload writer", exc_info=True)
+
+        prompt = self._build_prompt([
+            self.role,
+            {'role': 'user', 'content': enhanced_task.format(
+                previous_program,
+                json.dumps(analyst_decision, indent=2),
+                self.structure,
+            )},
+        ])
+
+        self._emit("Generating deload week program...")
+        draft = self.model(prompt)
+        if isinstance(draft, str):
+            draft = self._parse_string_draft(draft)
+        return draft
+
+    def write_new_block(self, program: dict) -> dict:
+        """Generate Week 1 of a new mesocycle based on analyst recommendations.
+
+        Parameters
+        ----------
+        program:
+            LangGraph state dict. Must contain 'draft', 'analyst_decision',
+            and optionally 'previous_block_summaries'.
+
+        Returns
+        -------
+        dict
+            The new block's Week 1 program draft.
+        """
+        if not self.task:
+            raise ValueError("Writer 'new_block' has no task template")
+
+        analyst_decision = program.get("analyst_decision", {})
+        previous_program = self.format_previous_week_program(program)
+        block_summaries = json.dumps(program.get("previous_block_summaries", []), indent=2)
+
+        query = self.get_retrieval_query(program)
+        enhanced_task = self.task
+        if query:
+            self._emit("Retrieving context for new training block...")
+            try:
+                result, _ = self.retrieval_fn(query, self.specialized_instructions.get("new_block", ""))
+                enhanced_task += f"\nRelevant context from training literature:\n{result}\n"
+            except Exception:
+                logger.warning("RAG retrieval failed for new block writer", exc_info=True)
+
+        prompt = self._build_prompt([
+            self.role,
+            {'role': 'user', 'content': enhanced_task.format(
+                previous_program,
+                json.dumps(analyst_decision, indent=2),
+                block_summaries,
+                self.structure,
+            )},
+        ])
+
+        self._emit("Generating new training block Week 1...")
+        draft = self.model(prompt)
+        if isinstance(draft, str):
+            draft = self._parse_string_draft(draft)
+        return draft
+
     # --- Helper methods for revision post-processing ---
 
     def _merge_progression(self, program, draft):
@@ -324,7 +422,13 @@ class Writer:
         return ["Set 1:(Performance data unavailable)"]
 
     def __call__(self, program: dict[str, str | None]) -> dict[str, str | None]:
-        if self.writer_type == "progression" and 'feedback' in program:
+        if self.writer_type == "deload":
+            logger.info("Deload writer")
+            draft = self.write_deload(program)
+        elif self.writer_type == "new_block":
+            logger.info("New block writer (mesocycle transition)")
+            draft = self.write_new_block(program)
+        elif self.writer_type == "progression" and 'feedback' in program:
             logger.info("Progression writer (Week 2+)")
             draft = self.revise(program, override_type="progression")
         elif program.get('draft') is None:

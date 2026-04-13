@@ -190,5 +190,82 @@ WRITER_PROMPT_SETTINGS['progression'] = WriterPromptSettings(
     structure=None,
 )
 
+# Deload writer
+TASK_DELOAD_WRITER = '''Generate a deload week program based on:
+
+1) The previous week's program:
+{}
+
+2) The analyst's deload recommendations:
+{}
+
+IMPORTANT:
+- Keep all exercises identical to the previous week
+- Reduce sets per the analyst's volume reduction plan (approximately 40-50% fewer sets)
+- Maintain weights but lower target RPE by 1-2 points
+- This is a recovery week — the goal is reduced fatigue, not progression
+- Do NOT add any new exercises or modify exercise order
+
+Follow this JSON structure as a guide for your response:
+{}
+'''
+
+TASK_NEW_BLOCK = '''Generate Week 1 of a new training block based on:
+
+1) The previous block's final program:
+{}
+
+2) The analyst's recommendations for the new block:
+{}
+
+3) Previous block summaries:
+{}
+
+IMPORTANT:
+- Implement all approved exercise swaps from the analyst recommendations
+- Apply volume adjustments as recommended
+- Maintain the same training split structure
+- Set initial weights conservatively — use the last working weights for retained exercises,
+  start 10-15% lighter for newly swapped exercises
+- Reset RPE targets to moderate levels (6-8 for compounds, 7-9 for isolation)
+- Fill in the "cues" field with specific coaching notes for any new exercises
+
+Follow this JSON structure as a guide for your response:
+{}
+'''
+
+DELOAD_WRITER_ROLE = {
+    'role': 'system',
+    'content': (
+        'You are an AI system specialized in generating deload training weeks. '
+        'Your task is to reduce training volume while preserving exercise selection and movement patterns. '
+        'Keep the program structure identical to the previous week but reduce sets by the recommended amount. '
+        'Provide clear, CONCISE output with no additional commentary.'
+    )
+}
+
+NEW_BLOCK_ROLE = {
+    'role': 'system',
+    'content': (
+        'You are an AI system specialized in creating the first week of a new training mesocycle. '
+        'You implement specific exercise swaps and volume adjustments recommended by an analyst, '
+        'while preserving the overall training split structure. '
+        'Set conservative initial loads for new exercises and moderate RPE targets across the board. '
+        'Provide clear, CONCISE output with no additional commentary.'
+    )
+}
+
+WRITER_PROMPT_SETTINGS['deload'] = WriterPromptSettings(
+    role=DELOAD_WRITER_ROLE,
+    task=TASK_DELOAD_WRITER,
+    structure=PROGRAM_STRUCTURE_WEEK1,
+)
+
+WRITER_PROMPT_SETTINGS['new_block'] = WriterPromptSettings(
+    role=NEW_BLOCK_ROLE,
+    task=TASK_NEW_BLOCK,
+    structure=PROGRAM_STRUCTURE_WEEK1,
+)
+
 # Add the original v1 as an alias to initial for backward compatibility
 WRITER_PROMPT_SETTINGS['v1'] = WRITER_PROMPT_SETTINGS['initial']
