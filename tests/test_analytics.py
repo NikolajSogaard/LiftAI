@@ -86,3 +86,95 @@ class TestComputeExerciseMetrics:
         ]
         metrics = compute_exercise_metrics(weeks)
         assert metrics["Bench Press"]["stagnation_weeks"] == 0
+
+
+from agent_system.analytics import compute_global_metrics, decide_review_type
+
+
+class TestComputeGlobalMetrics:
+    def test_rising_rpe_trend(self):
+        exercise_metrics = {
+            "Bench Press": {"stagnation_weeks": 0, "rpe_trend": "rising", "flag": "progressing"},
+            "Squat": {"stagnation_weeks": 0, "rpe_trend": "rising", "flag": "progressing"},
+        }
+        weeks = [
+            _make_week(1, {"Day 1": [
+                {"name": "Bench Press", "sets_data": [{"weight": "70", "reps": "8", "actual_rpe": "6"}]},
+                {"name": "Squat", "sets_data": [{"weight": "100", "reps": "5", "actual_rpe": "6"}]},
+            ]}),
+            _make_week(2, {"Day 1": [
+                {"name": "Bench Press", "sets_data": [{"weight": "72.5", "reps": "8", "actual_rpe": "8"}]},
+                {"name": "Squat", "sets_data": [{"weight": "102.5", "reps": "5", "actual_rpe": "9"}]},
+            ]}),
+        ]
+        gm = compute_global_metrics(exercise_metrics, weeks)
+        assert gm["avg_rpe_trend"] == "rising"
+        assert 0.0 <= gm["fatigue_score"] <= 1.0
+
+    def test_no_stalls_low_fatigue(self):
+        exercise_metrics = {
+            "Bench Press": {"stagnation_weeks": 0, "rpe_trend": "stable", "flag": "progressing"},
+        }
+        weeks = [
+            _make_week(1, {"Day 1": [
+                {"name": "Bench Press", "sets_data": [{"weight": "70", "reps": "8", "actual_rpe": "7"}]},
+            ]}),
+        ]
+        gm = compute_global_metrics(exercise_metrics, weeks)
+        assert gm["fatigue_score"] < 0.7
+        assert gm["stalled_exercise_ratio"] == 0.0
+
+
+class TestDecideReviewType:
+    def test_normal_week(self):
+        global_metrics = {
+            "avg_rpe_trend": "stable",
+            "fatigue_score": 0.2,
+            "stalled_exercise_ratio": 0.0,
+            "mesocycle_position": 0.5,
+        }
+        result = decide_review_type(global_metrics, week_in_mesocycle=2, mesocycle_length=4)
+        assert result["review_type"] == "normal"
+        assert result["triggers"] == []
+
+    def test_end_of_mesocycle(self):
+        global_metrics = {
+            "avg_rpe_trend": "stable",
+            "fatigue_score": 0.3,
+            "stalled_exercise_ratio": 0.1,
+            "mesocycle_position": 1.0,
+        }
+        result = decide_review_type(global_metrics, week_in_mesocycle=4, mesocycle_length=4)
+        assert result["review_type"] == "mesocycle_review"
+        assert any("end of mesocycle" in t.lower() for t in result["triggers"])
+
+    def test_high_fatigue_triggers_deload(self):
+        global_metrics = {
+            "avg_rpe_trend": "rising",
+            "fatigue_score": 0.8,
+            "stalled_exercise_ratio": 0.2,
+            "mesocycle_position": 0.5,
+        }
+        result = decide_review_type(global_metrics, week_in_mesocycle=2, mesocycle_length=4)
+        assert result["review_type"] == "deload"
+
+    def test_high_stall_ratio_triggers_review(self):
+        global_metrics = {
+            "avg_rpe_trend": "stable",
+            "fatigue_score": 0.3,
+            "stalled_exercise_ratio": 0.6,
+            "mesocycle_position": 0.75,
+        }
+        result = decide_review_type(global_metrics, week_in_mesocycle=3, mesocycle_length=4)
+        assert result["review_type"] == "mesocycle_review"
+
+    def test_deload_takes_priority_over_review(self):
+        """When both fatigue and stall thresholds are exceeded, deload wins."""
+        global_metrics = {
+            "avg_rpe_trend": "rising",
+            "fatigue_score": 0.85,
+            "stalled_exercise_ratio": 0.6,
+            "mesocycle_position": 1.0,
+        }
+        result = decide_review_type(global_metrics, week_in_mesocycle=4, mesocycle_length=4)
+        assert result["review_type"] == "deload"

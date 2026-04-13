@@ -122,3 +122,122 @@ def compute_exercise_metrics(weeks: list[dict]) -> dict[str, dict[str, Any]]:
         }
 
     return metrics
+
+
+def compute_global_metrics(
+    exercise_metrics: dict[str, dict[str, Any]],
+    weeks: list[dict],
+) -> dict[str, Any]:
+    """Compute global training metrics across all exercises.
+
+    Parameters
+    ----------
+    exercise_metrics:
+        Output of compute_exercise_metrics().
+    weeks:
+        The weekly records (used for per-week average RPE calculation).
+
+    Returns
+    -------
+    dict
+        {avg_rpe_trend, fatigue_score, stalled_exercise_ratio}
+    """
+    # Per-week average RPE across all exercises
+    weekly_rpes: list[float] = []
+    for record in weeks:
+        feedback = record.get("feedback") or {}
+        all_rpes: list[float] = []
+        for day_exercises in feedback.values():
+            for ex in day_exercises:
+                for s in ex.get("sets_data", []):
+                    try:
+                        rpe = float(s.get("actual_rpe", 0) or 0)
+                        if rpe > 0:
+                            all_rpes.append(rpe)
+                    except (ValueError, TypeError):
+                        pass
+        if all_rpes:
+            weekly_rpes.append(sum(all_rpes) / len(all_rpes))
+
+    # Average RPE trend
+    rpe_diff = 0.0
+    if len(weekly_rpes) >= 2:
+        first = sum(weekly_rpes[: len(weekly_rpes) // 2]) / (len(weekly_rpes) // 2)
+        second = sum(weekly_rpes[len(weekly_rpes) // 2 :]) / (len(weekly_rpes) - len(weekly_rpes) // 2)
+        rpe_diff = second - first
+        if rpe_diff > 0.5:
+            avg_rpe_trend = "rising"
+        elif rpe_diff < -0.5:
+            avg_rpe_trend = "falling"
+        else:
+            avg_rpe_trend = "stable"
+    else:
+        avg_rpe_trend = "stable"
+
+    # Stalled exercise ratio
+    total = len(exercise_metrics)
+    stalled = sum(1 for m in exercise_metrics.values() if m["flag"] == "stalled")
+    stalled_ratio = stalled / total if total > 0 else 0.0
+
+    # RPE rise component (0..1): how much average RPE rose, capped at 2.0 RPE increase
+    rpe_rise = 0.0
+    if len(weekly_rpes) >= 2:
+        rpe_rise = min(max(rpe_diff, 0.0) / 2.0, 1.0)
+
+    # Rep decline component: approximate with stalled_ratio
+    rep_decline = stalled_ratio
+
+    # Fatigue score composite
+    fatigue = (0.4 * rpe_rise) + (0.3 * rep_decline) + (0.3 * stalled_ratio)
+    fatigue = min(fatigue, 1.0)
+
+    return {
+        "avg_rpe_trend": avg_rpe_trend,
+        "fatigue_score": round(fatigue, 3),
+        "stalled_exercise_ratio": round(stalled_ratio, 3),
+    }
+
+
+def decide_review_type(
+    global_metrics: dict[str, Any],
+    week_in_mesocycle: int,
+    mesocycle_length: int,
+) -> dict[str, Any]:
+    """Decide whether this week is normal, deload, or mesocycle review.
+
+    Parameters
+    ----------
+    global_metrics:
+        Output of compute_global_metrics().
+    week_in_mesocycle:
+        Current position in the mesocycle (1-indexed).
+    mesocycle_length:
+        Total weeks in the mesocycle.
+
+    Returns
+    -------
+    dict
+        {review_type: str, triggers: list[str]}
+    """
+    from config import FATIGUE_SCORE_DELOAD_TRIGGER, STALL_RATIO_REVIEW_TRIGGER
+
+    triggers: list[str] = []
+    fatigue = global_metrics["fatigue_score"]
+    stall_ratio = global_metrics["stalled_exercise_ratio"]
+
+    # Deload takes priority — acute fatigue needs recovery first
+    if fatigue > FATIGUE_SCORE_DELOAD_TRIGGER:
+        triggers.append(f"Fatigue score {fatigue:.2f} exceeds threshold {FATIGUE_SCORE_DELOAD_TRIGGER}")
+        return {"review_type": "deload", "triggers": triggers}
+
+    # Mesocycle review triggers
+    if week_in_mesocycle >= mesocycle_length:
+        triggers.append(f"End of mesocycle (week {week_in_mesocycle}/{mesocycle_length})")
+
+    if stall_ratio > STALL_RATIO_REVIEW_TRIGGER:
+        triggers.append(f"Stalled exercise ratio {stall_ratio:.2f} exceeds threshold {STALL_RATIO_REVIEW_TRIGGER}")
+
+    if triggers:
+        return {"review_type": "mesocycle_review", "triggers": triggers}
+
+    return {"review_type": "normal", "triggers": []}
