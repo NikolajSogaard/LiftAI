@@ -5,4 +5,5 @@ from .agents import (
     Writer,
     Critic,
     Editor,
+    Analyst,
 )
