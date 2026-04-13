@@ -1515,5 +1515,188 @@
       });
     });
   </script>
+
+  <!-- Review Overlay -->
+  <div id="review-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; overflow-y:auto; padding:2rem;">
+    <div style="max-width:700px; margin:2rem auto; background:#1a1a1a; border-radius:16px; padding:2rem; border:1px solid #333;">
+      <h2 style="color:#FF6B2B; font-family:'Barlow Condensed',sans-serif; font-size:1.6rem; margin-bottom:1rem;" id="review-title">Program Review</h2>
+      <div id="review-reasoning" style="color:#ccc; font-family:'DM Sans',sans-serif; font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem; padding:1rem; background:#111; border-radius:8px;"></div>
+      <div id="review-recommendations" style="margin-bottom:1.5rem;"></div>
+      <div style="display:flex; gap:1rem; justify-content:flex-end;">
+        <button id="review-skip-btn" style="padding:0.6rem 1.5rem; border-radius:8px; border:1px solid #555; background:transparent; color:#ccc; font-family:'Barlow Condensed',sans-serif; font-size:1rem; cursor:pointer;">Skip Review</button>
+        <button id="review-approve-btn" style="padding:0.6rem 1.5rem; border-radius:8px; border:none; background:#FF6B2B; color:#fff; font-family:'Barlow Condensed',sans-serif; font-size:1rem; cursor:pointer;">Approve &amp; Generate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generation Progress Overlay -->
+  <div id="progress-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9998; display:none;">
+    <div style="max-width:500px; margin:15vh auto; background:#1a1a1a; border-radius:16px; padding:2rem; border:1px solid #333; text-align:center;">
+      <h2 style="color:#FF6B2B; font-family:'Barlow Condensed',sans-serif; font-size:1.4rem; margin-bottom:1rem;">Generating Next Week</h2>
+      <p id="progress-message" style="color:#ccc; font-family:'DM Sans',sans-serif; font-size:0.95rem;">Analyzing training history...</p>
+      <div style="margin-top:1rem; width:100%; height:4px; background:#333; border-radius:2px; overflow:hidden;">
+        <div id="progress-bar" style="width:10%; height:100%; background:#FF6B2B; transition:width 0.5s;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    var overlay = document.getElementById('review-overlay');
+    var titleEl = document.getElementById('review-title');
+    var reasoningEl = document.getElementById('review-reasoning');
+    var recsEl = document.getElementById('review-recommendations');
+    var approveBtn = document.getElementById('review-approve-btn');
+    var skipBtn = document.getElementById('review-skip-btn');
+    var progressOverlay = document.getElementById('progress-overlay');
+    var progressMsg = document.getElementById('progress-message');
+    var progressBar = document.getElementById('progress-bar');
+    var pendingJobId = null;
+
+    var stepProgress = {analytics: 20, analyst: 40, writer: 60, critic: 75, editor: 90, done: 100};
+
+    function showProgress(msg) {
+      progressOverlay.style.display = 'block';
+      progressMsg.textContent = msg || 'Processing...';
+    }
+
+    function hideProgress() {
+      progressOverlay.style.display = 'none';
+      progressBar.style.width = '10%';
+    }
+
+    function showReview(data) {
+      hideProgress();
+      var decision = data.analyst_decision || {};
+      var analytics = data.analytics || {};
+      var reviewType = decision.review_type || analytics.review_type || 'review';
+
+      titleEl.textContent = reviewType === 'deload'
+        ? 'Deload Week Recommended'
+        : 'Mesocycle Review \u2014 End of Block';
+
+      reasoningEl.textContent = decision.reasoning || 'No detailed reasoning provided.';
+
+      recsEl.innerHTML = '';
+      var recs = decision.recommendations || [];
+      if (recs.length > 0) {
+        var heading = document.createElement('h3');
+        heading.textContent = 'Proposed Changes';
+        heading.style.cssText = "color:#FF6B2B; font-family:'Barlow Condensed',sans-serif; font-size:1.2rem; margin-bottom:0.75rem;";
+        recsEl.appendChild(heading);
+
+        recs.forEach(function(rec) {
+          var div = document.createElement('div');
+          div.style.cssText = "padding:0.75rem 1rem; background:#111; border-radius:8px; margin-bottom:0.5rem; border-left:3px solid #FF6B2B;";
+          if (rec.type === 'swap') {
+            div.innerHTML = '<span style="color:#38BDF8; font-family:\'DM Mono\',monospace;">' + rec.exercise + '</span>'
+              + ' \u2192 <span style="color:#38BDF8; font-family:\'DM Mono\',monospace;">' + rec.replacement + '</span>'
+              + '<br><span style="color:#999; font-size:0.85rem;">' + rec.reason + '</span>';
+          } else if (rec.type === 'adjust_volume') {
+            div.innerHTML = '<span style="color:#38BDF8; font-family:\'DM Mono\',monospace;">' + rec.muscle_group + '</span>'
+              + ': ' + rec.change
+              + '<br><span style="color:#999; font-size:0.85rem;">' + rec.reason + '</span>';
+          }
+          recsEl.appendChild(div);
+        });
+      }
+
+      if (decision.deload) {
+        var deloadDiv = document.createElement('div');
+        deloadDiv.style.cssText = "padding:1rem; background:#111; border-radius:8px; margin-bottom:0.5rem;";
+        deloadDiv.innerHTML = '<span style="color:#FF6B2B; font-weight:600;">Deload Plan:</span> '
+          + 'Reduce volume by ~' + Math.round((decision.deload.volume_reduction || 0.5) * 100) + '%, '
+          + 'intensity: ' + (decision.deload.intensity || 'moderate');
+        recsEl.appendChild(deloadDiv);
+      }
+
+      pendingJobId = data.job_id;
+      overlay.style.display = 'block';
+    }
+
+    function listenToStream(jobId) {
+      var es = new EventSource('/generate/stream/' + jobId);
+      es.onmessage = function(e) {
+        var msg = JSON.parse(e.data);
+        if (msg.step === 'review') {
+          es.close();
+          showReview(msg);
+        } else if (msg.step === 'done') {
+          es.close();
+          progressBar.style.width = '100%';
+          window.location.href = '/next_week/complete/' + msg.job_id;
+        } else if (msg.step === 'error' || msg.step === 'timeout') {
+          es.close();
+          hideProgress();
+          alert('Error: ' + msg.message);
+        } else {
+          progressMsg.textContent = msg.message || 'Processing...';
+          if (stepProgress[msg.step]) {
+            progressBar.style.width = stepProgress[msg.step] + '%';
+          }
+        }
+      };
+      es.onerror = function() { es.close(); hideProgress(); };
+    }
+
+    approveBtn.addEventListener('click', function() {
+      if (!pendingJobId) return;
+      overlay.style.display = 'none';
+      approveBtn.disabled = true;
+      showProgress('Generating program based on approved changes...');
+
+      fetch('/approve_review', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({job_id: pendingJobId})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.job_id) {
+          listenToStream(data.job_id);
+        }
+        approveBtn.disabled = false;
+      })
+      .catch(function(err) {
+        hideProgress();
+        approveBtn.disabled = false;
+        alert('Approve failed: ' + err.message);
+      });
+    });
+
+    skipBtn.addEventListener('click', function() {
+      overlay.style.display = 'none';
+      pendingJobId = null;
+    });
+
+    // Intercept the training form submit to use SSE
+    var trainingForm = document.getElementById('training-form');
+    if (trainingForm) {
+      trainingForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        showProgress('Analyzing training history...');
+        var formData = new FormData(trainingForm);
+
+        fetch('/next_week', {
+          method: 'POST',
+          body: formData,
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.job_id) {
+            listenToStream(data.job_id);
+          } else {
+            hideProgress();
+            alert('Failed to start generation');
+          }
+        })
+        .catch(function(err) {
+          hideProgress();
+          alert('Error: ' + err.message);
+        });
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
