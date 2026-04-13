@@ -241,3 +241,40 @@ def decide_review_type(
         return {"review_type": "mesocycle_review", "triggers": triggers}
 
     return {"review_type": "normal", "triggers": []}
+
+
+def analyze_training_history(
+    weeks: list[dict],
+    week_in_mesocycle: int,
+    mesocycle_length: int,
+) -> dict[str, Any]:
+    """Top-level entry point: compute all metrics and decide review type.
+
+    Parameters
+    ----------
+    weeks:
+        Current mesocycle's weekly records with feedback.
+    week_in_mesocycle:
+        Current position in the mesocycle (1-indexed).
+    mesocycle_length:
+        Configured mesocycle length.
+
+    Returns
+    -------
+    dict
+        {review_type, triggers, exercise_flags, global_metrics}
+    """
+    exercise_metrics = compute_exercise_metrics(weeks)
+    global_metrics = compute_global_metrics(exercise_metrics, weeks)
+    global_metrics["mesocycle_position"] = round(
+        week_in_mesocycle / mesocycle_length, 2
+    ) if mesocycle_length > 0 else 0.0
+
+    decision = decide_review_type(global_metrics, week_in_mesocycle, mesocycle_length)
+
+    return {
+        "review_type": decision["review_type"],
+        "triggers": decision["triggers"],
+        "exercise_flags": exercise_metrics,
+        "global_metrics": global_metrics,
+    }

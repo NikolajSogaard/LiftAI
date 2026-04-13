@@ -178,3 +178,33 @@ class TestDecideReviewType:
         }
         result = decide_review_type(global_metrics, week_in_mesocycle=4, mesocycle_length=4)
         assert result["review_type"] == "deload"
+
+
+from agent_system.analytics import analyze_training_history
+
+
+class TestAnalyzeTrainingHistory:
+    def test_full_pipeline_normal(self):
+        """3 weeks of progressing data, mid-mesocycle → normal."""
+        weeks = [
+            _make_week(w, {"Day 1": [{"name": "Bench Press", "sets_data": [
+                {"weight": str(70 + w * 2.5), "reps": "8", "actual_rpe": "7"}
+            ]}]})
+            for w in range(1, 4)
+        ]
+        result = analyze_training_history(weeks, week_in_mesocycle=3, mesocycle_length=4)
+        assert result["review_type"] == "normal"
+        assert "Bench Press" in result["exercise_flags"]
+        assert result["exercise_flags"]["Bench Press"]["flag"] == "progressing"
+        assert "global_metrics" in result
+
+    def test_full_pipeline_end_of_mesocycle(self):
+        """4 weeks, at end of mesocycle → mesocycle_review."""
+        weeks = [
+            _make_week(w, {"Day 1": [{"name": "Bench Press", "sets_data": [
+                {"weight": str(70 + w * 2.5), "reps": "8", "actual_rpe": "7"}
+            ]}]})
+            for w in range(1, 5)
+        ]
+        result = analyze_training_history(weeks, week_in_mesocycle=4, mesocycle_length=4)
+        assert result["review_type"] == "mesocycle_review"
