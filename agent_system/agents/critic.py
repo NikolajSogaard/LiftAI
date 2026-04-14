@@ -77,8 +77,8 @@ class Critic:
             }
         }
 
-        self.task_configs = {
-            "frequency_and_split": CritiqueTask(
+        all_task_defs = {
+            "frequency_and_split": lambda: CritiqueTask(
                 name="frequency_and_split",
                 template=self.tasks.get("frequency_and_split", ""),
                 needs_retrieval=True,
@@ -86,7 +86,7 @@ class Critic:
                 specialized_instructions=self.specialized_instructions.get("frequency_and_split", ""),
                 dependencies=[],
             ),
-            "exercise_selection": CritiqueTask(
+            "exercise_selection": lambda: CritiqueTask(
                 name="exercise_selection",
                 template=self.tasks.get("exercise_selection", ""),
                 needs_retrieval=True,
@@ -94,14 +94,14 @@ class Critic:
                 specialized_instructions=self.specialized_instructions.get("exercise_selection", ""),
                 dependencies=["frequency_and_split"],
             ),
-            "set_volume": CritiqueTask(
+            "set_volume": lambda: CritiqueTask(
                 name="set_volume",
                 template=self.tasks.get("set_volume", ""),
                 needs_retrieval=False,
                 dependencies=["frequency_and_split", "exercise_selection"],
                 reference_data={"volume_guidelines": volume_guidelines}
             ),
-            "rep_ranges": CritiqueTask(
+            "rep_ranges": lambda: CritiqueTask(
                 name="rep_ranges",
                 template=self.tasks.get("rep_ranges", ""),
                 needs_retrieval=True,
@@ -109,7 +109,7 @@ class Critic:
                 specialized_instructions=self.specialized_instructions.get("rep_ranges", ""),
                 dependencies=["frequency_and_split", "exercise_selection", "set_volume"],
             ),
-            "rpe": CritiqueTask(
+            "rpe": lambda: CritiqueTask(
                 name="rpe",
                 template=self.tasks.get("rpe", ""),
                 needs_retrieval=True,
@@ -117,7 +117,7 @@ class Critic:
                 specialized_instructions=self.specialized_instructions.get("rpe", ""),
                 dependencies=["frequency_and_split", "exercise_selection", "set_volume", "rep_ranges"],
             ),
-            "progression": CritiqueTask(
+            "progression": lambda: CritiqueTask(
                 name="progression",
                 template=self.tasks.get("progression", ""),
                 needs_retrieval=True,
@@ -126,6 +126,12 @@ class Critic:
                 dependencies=[],
             )
         }
+
+        # Only build configs for active task types to avoid empty template errors
+        self.task_configs = {}
+        for task_type in self.task_types:
+            if task_type in all_task_defs:
+                self.task_configs[task_type] = all_task_defs[task_type]()
 
     def _emit(self, message, detail=False):
         if self.on_status:
@@ -174,9 +180,9 @@ class Critic:
                 for muscle, ranges in muscles.items():
                     ref_context += f"- {muscle.capitalize()}: {ranges.get('min', '?')}-{ranges.get('max', '?')} sets per week\n"
         
-        # Retrieve context if task needs it
+        # Retrieve context if task needs it — skip for week 2+ progression
         context = ""
-        if task_config.needs_retrieval:
+        if task_config.needs_retrieval and not self.is_week2plus:
             retrieval_query = task_config.retrieval_query
             if "{user_input}" in retrieval_query:
                 retrieval_query = retrieval_query.format(user_input=program.get('user-input', ''))

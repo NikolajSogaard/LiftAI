@@ -175,17 +175,18 @@ class Writer:
                     "- NO additional text or explanations whatsoever\n"
                 )
         
-        # RAG retrieval for revision/progression context
-        query = self.get_retrieval_query(program)
-        if query:
-            logger.info("Writer retrieving context for %s", current_type)
-            self._emit("Retrieving context from training literature...")
-            try:
-                result, _ = self.retrieval_fn(query, self.specialized_instructions.get(current_type, ""))
-                revision_task += f"\nRelevant context from training literature:\n{result}\n"
-                self._emit(f"Retrieved context:\n{result.strip()}", detail=True)
-            except Exception:
-                logger.warning("RAG retrieval failed in revise(), continuing without context", exc_info=True)
+        # RAG retrieval — skip for progression (previous program + feedback is sufficient)
+        if not is_progression:
+            query = self.get_retrieval_query(program)
+            if query:
+                logger.info("Writer retrieving context for %s", current_type)
+                self._emit("Retrieving context from training literature...")
+                try:
+                    result, _ = self.retrieval_fn(query, self.specialized_instructions.get(current_type, ""))
+                    revision_task += f"\nRelevant context from training literature:\n{result}\n"
+                    self._emit(f"Retrieved context:\n{result.strip()}", detail=True)
+                except Exception:
+                    logger.warning("RAG retrieval failed in revise(), continuing without context", exc_info=True)
 
         # Build prompt — prepend Reflexion lessons if any exist
         if is_progression and previous_program_formatted:

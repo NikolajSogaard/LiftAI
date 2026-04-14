@@ -35,13 +35,16 @@ class Editor:
         if not program.get('feedback') or not self.writer:
             return program
 
+        week = program.get('week_number') or program.get('week_in_mesocycle', 1)
+        if week > 1:
+            logger.info("Editor: skipping final revision for progression (week %d)", week)
+            return program
+
         logger.info("Editor: implementing final round of feedback")
         self._emit("Implementing final feedback round...")
         try:
-            week = program.get('week_number', 1)
-            override_type = "progression" if week > 1 else "revision"
-            logger.info("Using %s mode (Week %d)", override_type, week)
-            program['draft'] = self.writer.revise(program, override_type=override_type)
+            logger.info("Using revision mode (Week %d)", week)
+            program['draft'] = self.writer.revise(program, override_type="revision")
             logger.info("Final feedback applied successfully")
         except Exception as e:
             logger.exception("Error implementing final feedback")

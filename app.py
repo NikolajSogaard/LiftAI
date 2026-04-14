@@ -208,6 +208,7 @@ def get_progression_generator(config: dict, writer_type: str = "progression") ->
 
     llm_writer = setup_llm(
         model=config['model'],
+        max_tokens=config['max_tokens'],
         respond_as_json=True,
         temperature=config['writer_temperature'],
         top_p=config['writer_top_p'],
@@ -456,15 +457,19 @@ def generate_stream(job_id):
         if not q:
             yield f"data: {json.dumps({'step': 'error', 'message': 'Job not found'})}\n\n"
             return
-        while True:
+        elapsed = 0
+        poll_interval = 15  # seconds between keepalive pings
+        while elapsed < QUEUE_TIMEOUT:
             try:
-                msg = q.get(timeout=QUEUE_TIMEOUT)
+                msg = q.get(timeout=poll_interval)
+                elapsed = 0  # reset on real message
                 yield f"data: {json.dumps(msg)}\n\n"
                 if msg.get("step") in ("done", "error"):
-                    break
+                    return
             except queue.Empty:
-                yield f"data: {json.dumps({'step': 'timeout', 'message': 'Generation timed out'})}\n\n"
-                break
+                elapsed += poll_interval
+                yield ": keepalive\n\n"  # SSE comment — keeps connection alive
+        yield f"data: {json.dumps({'step': 'timeout', 'message': 'Generation timed out'})}\n\n"
     return Response(_event_stream(), mimetype='text/event-stream')
 
 
