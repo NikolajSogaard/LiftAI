@@ -442,11 +442,6 @@
       align-items: center;
       gap: 4px;
     }
-    .set-fields-row {
-      display: flex;
-      gap: 8px;
-    }
-
     .set-input {
       width: 58px;
       padding: 6px 4px;
@@ -471,7 +466,7 @@
     }
     .set-pill {
       background: var(--surface2, #1c1c1c);
-      border: 1px dashed var(--line, #2a2a2a);
+      border: 1px dashed var(--border);
       border-radius: 8px;
       min-height: 44px;   /* thumb-friendly */
       display: flex;
@@ -479,21 +474,18 @@
       justify-content: center;
       font-family: 'DM Mono', monospace;
       font-size: 15px;
-      color: var(--muted, #888884);
+      color: var(--text-muted);
       cursor: pointer;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
     .set-pill .pill-value:empty::before {
       content: attr(data-placeholder);
-      color: var(--muted, #888884);
+      color: var(--text-muted);
       opacity: 0.55;
       font-size: 12px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-    }
-    .set-pill .pill-value:not(:empty) {
-      color: var(--muted, #888884);   /* ghost state before confirm */
     }
     .set-pill input.pill-input {
       width: 100%;
@@ -519,7 +511,7 @@
     }
     .set-confirm:disabled {
       background: var(--surface2, #1c1c1c);
-      color: var(--muted, #888884);
+      color: var(--text-muted);
       cursor: not-allowed;
     }
     /* Done state: row turns solid, pills read as blue numbers, ✓ turns green-outlined */
@@ -532,8 +524,8 @@
     }
     .set-row.done .set-confirm {
       background: transparent;
-      color: #4ade80;
-      border: 1px solid #4ade80;
+      color: var(--green);
+      border: 1px solid var(--green);
     }
     /* Pulse nudges the next un-confirmed ✓ */
     @keyframes set-pulse {
@@ -543,6 +535,17 @@
     }
     .set-confirm.pulse {
       animation: set-pulse 1.4s ease-out 2;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .set-confirm.pulse { animation: none; }
+    }
+    .set-pill:focus-visible,
+    .set-confirm:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+    .set-pill input.pill-input:focus-visible {
+      border-color: var(--blue);
     }
     .set-input:focus { border-color: var(--orange); }
     .set-input:disabled { opacity: 0.25; cursor: not-allowed; }
@@ -823,7 +826,6 @@
       .container { width: 98%; }
       .card-top { flex-direction: column; gap: 8px; }
       .card-metrics { align-self: flex-start; }
-      .set-fields-row { flex-wrap: wrap; }
       .sticky-bar { padding: 10px 12px; gap: 7px; }
       .btn { padding: 9px 13px; font-size: 0.82rem; }
     }
