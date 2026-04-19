@@ -392,6 +392,24 @@ def index():
     current_week = session.get('current_week', 1)
     return render_template('index.html', programs=programs, current_week=current_week)
 
+@app.route('/log_set', methods=['POST'])
+def log_set():
+    """Persist a single confirmed set to session['set_log']."""
+    data = request.get_json(silent=True) or {}
+    required = ('week', 'day', 'exercise_index', 'set_index')
+    if not all(k in data for k in required):
+        return jsonify({'ok': False, 'error': 'missing fields'}), 400
+
+    key = f"{data['week']}|{data['day']}|{data['exercise_index']}|{data['set_index']}"
+    log = session.get('set_log', {})
+    log[key] = {
+        'weight': data.get('weight'),
+        'reps': data.get('reps'),
+        'actual_rir': data.get('actual_rir'),
+    }
+    session['set_log'] = log
+    return jsonify({'ok': True})
+
 @app.route('/generate', methods=['GET', 'POST'])
 def generate_program():
     if request.method == 'POST':
