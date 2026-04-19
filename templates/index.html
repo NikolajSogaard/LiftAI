@@ -539,7 +539,6 @@
     @media (prefers-reduced-motion: reduce) {
       .set-confirm.pulse { animation: none; }
     }
-    .set-pill:focus-visible,
     .set-confirm:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 2px;
@@ -1684,10 +1683,10 @@
 
     function updateConfirmEnabled(row) {
       const btn = row.querySelector('.set-confirm');
-      if (!btn || btn.hasAttribute('disabled') && row.dataset.readonly === '1') return;
+      if (!btn) return;
+      if (row.dataset.readonly === '1') return;
       const kgVal = row.querySelector('.set-pill[data-field="weight"] .pill-value').textContent.trim();
-      const isReadonly = row.dataset.readonly === '1';
-      btn.disabled = isReadonly || !kgVal;
+      btn.disabled = !kgVal;
     }
 
     function postLogSet(row) {
@@ -1758,6 +1757,9 @@
         updateConfirmEnabled(row);
         return;
       }
+      // If a pill is still in edit mode, commit it synchronously first.
+      const activeInput = row.querySelector('input.pill-input');
+      if (activeInput) activeInput.blur();
       // Ensure hidden inputs are populated from current pill values
       ['weight', 'reps', 'actual_rir'].forEach((f) => {
         const v = row.querySelector(`.set-pill[data-field="${f}"] .pill-value`).textContent.trim();
