@@ -462,6 +462,88 @@
       transition: border-color 0.15s;
       -moz-appearance: textfield;
     }
+    /* Fast-log pill UI */
+    .set-fields-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 52px;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .set-pill {
+      background: var(--surface2, #1c1c1c);
+      border: 1px dashed var(--line, #2a2a2a);
+      border-radius: 8px;
+      min-height: 44px;   /* thumb-friendly */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      color: var(--muted, #888884);
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .set-pill .pill-value:empty::before {
+      content: attr(data-placeholder);
+      color: var(--muted, #888884);
+      opacity: 0.55;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .set-pill .pill-value:not(:empty) {
+      color: var(--muted, #888884);   /* ghost state before confirm */
+    }
+    .set-pill input.pill-input {
+      width: 100%;
+      height: 44px;
+      background: var(--bg, #0D0D0D);
+      border: 1px solid var(--orange, #FF6B2B);
+      color: var(--blue, #38BDF8);
+      font-family: 'DM Mono', monospace;
+      font-size: 16px;     /* >=16px prevents iOS auto-zoom */
+      text-align: center;
+      border-radius: 8px;
+      outline: none;
+    }
+    .set-confirm {
+      background: var(--orange, #FF6B2B);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      min-height: 44px;
+      cursor: pointer;
+    }
+    .set-confirm:disabled {
+      background: var(--surface2, #1c1c1c);
+      color: var(--muted, #888884);
+      cursor: not-allowed;
+    }
+    /* Done state: row turns solid, pills read as blue numbers, ✓ turns green-outlined */
+    .set-row.done .set-pill {
+      border-style: solid;
+      background: #111;
+    }
+    .set-row.done .set-pill .pill-value {
+      color: var(--blue, #38BDF8);
+    }
+    .set-row.done .set-confirm {
+      background: transparent;
+      color: #4ade80;
+      border: 1px solid #4ade80;
+    }
+    /* Pulse nudges the next un-confirmed ✓ */
+    @keyframes set-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 107, 43, 0.55); }
+      70%  { box-shadow: 0 0 0 10px rgba(255, 107, 43, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 107, 43, 0); }
+    }
+    .set-confirm.pulse {
+      animation: set-pulse 1.4s ease-out 2;
+    }
     .set-input:focus { border-color: var(--orange); }
     .set-input:disabled { opacity: 0.25; cursor: not-allowed; }
     .set-input::-webkit-outer-spin-button,
