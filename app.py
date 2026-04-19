@@ -390,7 +390,13 @@ def index():
         return redirect(url_for('generate_program'))
     programs = session.get('all_programs', [])
     current_week = session.get('current_week', 1)
-    return render_template('index.html', programs=programs, current_week=current_week)
+    set_log = session.get('set_log', {})
+    return render_template(
+        'index.html',
+        programs=programs,
+        current_week=current_week,
+        set_log=set_log,
+    )
 
 @app.route('/log_set', methods=['POST'])
 def log_set():
