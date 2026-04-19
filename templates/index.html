@@ -863,35 +863,47 @@
               </div>
               {% endif %}
 
-              <!-- Per-set inputs -->
+              <!-- Per-set inputs (pill UI + hidden form inputs) -->
               <div class="sets-section">
+                {% set day_key = day.replace(' ', '') %}
                 {% for i in range(exercise.sets|default(3, true)) %}
-                <div class="set-row">
-                  <span class="set-label">S{{ i+1 }}</span>
-                  <div class="set-fields-row">
-                    <div class="set-field-group">
-                      <input type="number" step="0.5" class="set-input"
-                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_weight"
-                             placeholder="—"
-                             {% if week_program.week != current_week %}disabled{% endif %}>
-                      <span class="set-field-label">kg</span>
+                  {% set prior_key = (week_program.week - 1) ~ '|' ~ day ~ '|' ~ exercise_index ~ '|' ~ i %}
+                  {% set prior_weight = set_log.get(prior_key, {}).get('weight', '') if set_log else '' %}
+                  {% set is_editable = (week_program.week == current_week) %}
+                  <div class="set-row"
+                       data-week="{{ week_program.week }}"
+                       data-day="{{ day }}"
+                       data-exercise-index="{{ exercise_index }}"
+                       data-set-index="{{ i }}"
+                       data-reps-target="{{ exercise.reps|default('', true) }}"
+                       data-rir-target="{{ exercise.target_rir|default('', true) }}"
+                       data-prior-weight="{{ prior_weight }}">
+                    <span class="set-label">S{{ i+1 }}</span>
+                    <div class="set-fields-row">
+                      <div class="set-pill" data-field="weight">
+                        <span class="pill-value" data-placeholder="kg">{{ prior_weight }}</span>
+                      </div>
+                      <div class="set-pill" data-field="reps">
+                        <span class="pill-value" data-placeholder="reps"></span>
+                      </div>
+                      <div class="set-pill" data-field="actual_rir">
+                        <span class="pill-value" data-placeholder="RIR"></span>
+                      </div>
+                      <button type="button" class="set-confirm" aria-label="Confirm set"
+                              {% if not is_editable %}disabled{% endif %}>✓</button>
                     </div>
-                    <div class="set-field-group">
-                      <input type="number" class="set-input"
-                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_reps"
-                             placeholder="—"
-                             {% if week_program.week != current_week %}disabled{% endif %}>
-                      <span class="set-field-label">reps</span>
-                    </div>
-                    <div class="set-field-group">
-                      <input type="number" step="0.5" class="set-input"
-                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_actual_rir"
-                             placeholder="—"
-                             {% if week_program.week != current_week %}disabled{% endif %}>
-                      <span class="set-field-label">RIR</span>
-                    </div>
+
+                    <!-- Hidden inputs keep the existing /next_week form contract intact -->
+                    <input type="hidden"
+                           name="{{ week_program.week }}_{{ day_key }}_ex{{ exercise_index }}_set{{ i }}_weight"
+                           value="{{ prior_weight }}">
+                    <input type="hidden"
+                           name="{{ week_program.week }}_{{ day_key }}_ex{{ exercise_index }}_set{{ i }}_reps"
+                           value="">
+                    <input type="hidden"
+                           name="{{ week_program.week }}_{{ day_key }}_ex{{ exercise_index }}_set{{ i }}_actual_rir"
+                           value="">
                   </div>
-                </div>
                 {% endfor %}
               </div>
 
