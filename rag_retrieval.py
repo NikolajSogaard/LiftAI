@@ -155,9 +155,18 @@ def retrieve_context(query: str, k: int = RAG_TOP_K, use_hyde: bool = True, use_
     return context, summary, sources
 
 
-def retrieve_and_generate(query: str, specialized_instructions: str = "") -> tuple[str, str]:
-    """Retrieve relevant context and synthesise a response using Gemini."""
-    context, summary, sources = retrieve_context(query)
+def retrieve_and_generate(
+    query: str,
+    specialized_instructions: str = "",
+    use_hyde: bool = True,
+    use_crag: bool = True,
+) -> tuple[str, str]:
+    """Retrieve relevant context and synthesise a response using Gemini.
+
+    Pass use_hyde=False / use_crag=False for evaluation-style queries (e.g. the
+    Critic) where the extra LLM calls don't materially improve retrieval quality.
+    """
+    context, summary, sources = retrieve_context(query, use_hyde=use_hyde, use_crag=use_crag)
     prompt = f"""You are a specialized strength training expert.
 {specialized_instructions}
 

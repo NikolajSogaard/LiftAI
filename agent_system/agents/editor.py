@@ -35,6 +35,10 @@ class Editor:
         if not program.get('feedback') or not self.writer:
             return program
 
+        if program.get('feedback_applied'):
+            logger.info("Editor: feedback already applied by writer, skipping revise pass")
+            return program
+
         week = program.get('week_number') or program.get('week_in_mesocycle', 1)
         if week > 1:
             logger.info("Editor: skipping final revision for progression (week %d)", week)

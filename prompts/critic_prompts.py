@@ -3,10 +3,44 @@ from typing import Dict, Optional, List
 
 # Define reusable prompt components
 COMMON_RESPONSE_FORMAT = '''
-IMPORTANT: 
+IMPORTANT:
 1. Provide SPECIFIC, CONCRETE suggestions - don't just identify problems
 2. For each change, specify exactly what to modify and how
 3. If nothing needs improvement, return "None"
+'''
+
+# Shared critic response constraints — appended to role so they're sent ONCE
+# per critic LLM (not duplicated into all 5 task templates).
+COMMON_RESPONSE_CONSTRAINTS = '''
+RESPONSE CONSTRAINTS (apply to every critique):
+- Keep responses under ~200 words. Bullet points only. No preamble, no meta-commentary.
+- Provide SPECIFIC, CONCRETE suggestions: exact exercise, exact set count, exact rep range, exact RPE, exact day.
+- If nothing meaningful needs improvement, return exactly "None".
+'''
+
+# Critic operating principles — applied across all tasks
+COMMON_CRITIC_PRINCIPLES = '''
+OPERATING PRINCIPLES (apply to every critique):
+
+1. THINK BEFORE CRITIQUING
+   - State the user attribute you're leaning on (goal, experience, days/week) when a call could go either way.
+   - If the user's input supports multiple valid training approaches, name the tradeoff instead of silently picking one.
+   - If something in the input is genuinely ambiguous, flag it rather than guessing.
+
+2. MINIMUM NECESSARY CHANGES
+   - Suggest only changes that materially improve the program for THIS user.
+   - No speculative "nice-to-haves." No tweaks that are just stylistic preference.
+   - If three changes matter and seven are possible, return three.
+
+3. STAY IN YOUR SCOPE
+   - Every task has an explicit focus (frequency, exercises, volume, reps, or RPE). Do not drift outside it.
+   - Do not re-litigate decisions owned by a sibling task. Trust the pipeline.
+   - If a cross-cutting concern appears, note it briefly but do not act on it.
+
+4. CONCRETE, VERIFIABLE OUTPUT
+   - Every suggestion must be specific enough for the Writer to apply without interpretation: exact exercise, exact set count, exact rep range, exact RPE, exact day.
+   - Vague directives ("increase volume a bit", "make it harder") are not acceptable output.
+   - If no concrete change is warranted, return "None".
 '''
 
 @dataclasses.dataclass
@@ -36,185 +70,99 @@ class CriticPromptSettings:
 
 # All task templates for the critic
 TASK_FREQUENCY_AND_SPLIT = '''
-Your colleague has written the following training program:
+Program:
 {}
-For an individual who provided the following input:
+User input:
 {}
-Focus ONLY on the TRAINING FREQUENCY and SPLIT SELECTION. Do NOT comment on exercise selection, rep ranges, or RPE.
-Specifically, evaluate whether:
-1. The program provides sufficient frequency for each major muscle group
-2. The training split effectively utilizes the user's available training days and experience level. 
-3. The split is appropriate for the user's goals (strength, powerlifting, hypertrophy, etc.)
 
-For hypertrophy-focused goals, consider these common split options:
-- Full body (2x/week): Trains all muscle groups each session
-- Hybrid full body (3x/week): Alternates between full body and upper/lower splits
-- Upper/Lower (4x/week): Alternates between upper and lower body days
-- Hybrid splits (5 days): Such as Push, Pull, Legs, Upper, Lower
-- Push/Pull/Legs (6x/week): One day each for pushing movements, pulling movements, and leg exercises
+Focus ONLY on TRAINING FREQUENCY and SPLIT SELECTION. Do not comment on exercise selection, rep ranges, or RPE.
 
-For powerlifting and strength-focused goals, consider these specialized split options:
-- Full-Body Split (3 Days/Week): Each session covers all three main lifts.
-- Upper/Lower Split (4 Days/Week): Alternates between upper and lower body days - frequency 2-3 times a week.
-- Dedicated Lifts Split (4-5 Days/Week): Each session focuses on one or two main lifts.
-- Movement-based splits: Organize training around the individual's main lifts.
-- Main lift + supplemental work: Each day features one main compound lift followed by related assistance work
+Evaluate:
+- Sufficient frequency for each major muscle group
+- Split fits the user's available days and experience level
+- Split fits the user's goal (hypertrophy, strength, powerlifting, general fitness)
 
-For strength and powerlifting goals, consider the following recommendations:
-- Prioritize Main Lifts: Focus on the individual's preferred main exercises—these might be traditional lifts like squat, bench press, and deadlift, or could be alternatives depending on the individual's preferences.
-- Higher Frequency for Main Lifts: The individual's main lifts and their variations can be trained more than 2-4 times per week with proper load management.
-- Accessory Work: Although main lifts receive higher frequency, accessory exercises should be performed less frequently.
-- Tailored Adjustments: If the current training frequency or split doesn't align with the user's available training days or specific goals, adjust the plan to better match those needs.
-- Specialized Training Days: It's appropriate to have specialized days (like "posterior chain focus") as long as overall weekly volume remains balanced across muscle groups/movement patterns.
+Reference splits:
+- Hypertrophy: Full body 2x; Hybrid FB 3x; Upper/Lower 4x; Hybrid 5d (e.g. PPL+UL); PPL 6x.
+- Strength/Powerlifting: Full body 3x; Upper/Lower 4x; Dedicated-lift 4-5x; movement-based; main lift + assistance.
+- Specialized days (e.g. posterior-chain focus) are fine if weekly volume stays balanced across muscle groups.
+- For strength/PL: prioritize the user's main lifts; main lifts can run 2-4x/week with load management; accessories less frequent.
 
-IMPORTANT: If changes are needed, provide SPECIFIC, CONCRETE suggestions - specify exactly what split structure you recommend with a clear layout of training days.
-If nothing needs improvement, return "None".
+If changes are needed, give the exact split structure (day-by-day).
 '''
 
 TASK_EXERCISE_SELECTION = '''
-Your colleague has written the following training program:
+Program:
 {}
- 
-The individual has provided these details:
+User input:
 {}
- 
-Focus ONLY on EXERCISE SELECTION. Do NOT comment on frequency, split structure, rep ranges, or RPE.
- 
-Evaluate whether:
-- The chosen exercises align with the individual's goals, experience level, and personal preferences
-- NOTE: If the frequency_and_split critique suggested different training splits or structure, consider how exercises would fit into that revised structure rather than the original
-- Each training day should contain NO MORE THAN 8 exercises to ensure workout want be too long.
 
-For beginners:
-- Prioritize compound movements (e.g., squats, rows, presses) to maximize training efficiency.
-- Maintain a balanced routine targeting all major muscle groups each week.
-- Think about the mix of free-weight and machine exercises for the specific user.
-- Keep workouts short and focused—quality over quantity.
+Focus ONLY on EXERCISE SELECTION. Do not comment on frequency, split, rep ranges, or RPE.
 
-For bodybuilding/hypertrophy-focused goals:
-- Maintain a balanced mix of compound (50-70%) and isolation (30-50%) exercises
-- Include a variety of exercises to target each muscle group from different angles
-- Aim for a 50-50 mix of free-weight and machine exercises
- 
-For strength/powerlifting-focused goals:
-- Choose exercises that directly complement the individual's main lifts or their well-suited variations
-- Main lifts should be based on the individual's preferences and goals, not necessarily traditional powerlifts
-- For powerlifting programs, structure each day around main compound movements followed by relevant accessories
-- It's acceptable to place certain "main" lifts on seemingly unrelated days (e.g., pull-ups on leg day) if:
-  1. It serves a specific purpose (e.g., back development for improved bracing on squats)
-  2. It doesn't interfere with recovery for the primary focus of that day
-  3. The overall weekly volume and frequency for that movement pattern is appropriate
-- Identify accessory movements that target the supporting muscle groups impacting the main lifts
-- For specialized days (like posterior chain focus), ensure that across the week, all muscle groups and movement patterns receive balanced attention
- 
-Balance considerations for specialized training days:
-- When creating a specialized day (e.g., posterior chain focus), compensate with complementary work on other days
-- Ensure appropriate opposing muscle group work within the week (e.g., if emphasizing hamstrings heavily, ensure adequate quad work elsewhere)
-- Main lifts should be placed where recovery will be optimal for performance
- 
-IMPORTANT: If changes are needed, provide SPECIFIC, CONCRETE suggestions - list exactly which exercises to replace and what to replace them with.
-If nothing needs improvement, return "None".
+Evaluate:
+- Exercises fit the user's goal, experience, and preferences
+- No day exceeds 8 exercises
+- Specialized days (e.g. posterior-chain focus) are balanced by complementary work elsewhere in the week
+
+Goal-specific guidance:
+- Beginner: prioritize compounds (squat/row/press); balance major muscle groups; mix free-weight and machine.
+- Hypertrophy: 50-70% compound / 30-50% isolation; vary angles; ~50/50 free-weight vs machine.
+- Strength/Powerlifting: exercises must complement the user's main lifts (or their preferred variants); main lifts can sit on unrelated days if it serves a purpose and recovery isn't compromised; pick accessories that target supporting muscle groups.
+
+If changes are needed, list exactly which exercises to replace and what to replace them with (per day).
 '''
 
 TASK_SET_VOLUME = '''
-Your colleague has written the following training program:
+Program:
+{}
+User input:
 {}
 
-The individual has provided these details:
-{}
+Focus ONLY on WEEKLY SET VOLUME per movement pattern. Do not comment on frequency, exercise specifics, rep ranges, or RPE.
 
-Focus ONLY on evaluating the WEEKLY SET VOLUME for each major movement pattern and suggesting concrete adjustments. Do NOT comment on frequency, split structure, exercise selection specifics, rep ranges, or RPE.
+Steps:
+1) Tally current weekly sets for: Upper Horizontal Push (chest), Upper Horizontal Pull (rows), Upper Vertical Push (overhead), Upper Vertical Pull (pull-ups/lats), Lower Anterior Chain (quads), Lower Posterior Chain (glutes/hams). Compounds may count for multiple patterns.
+2) Compare to the volume guidelines in the reference data below; flag patterns above/below range.
+3) Recommend concrete fixes: which day, which exercise, change set count or add/remove. Per-exercise set count must stay 2-5. For ranges, start at the LOWER end (especially for beginners). Distribute volume across days, don't concentrate on one.
+- Strength/PL: ensure main lifts get sufficient volume; accessories complement without overloading.
+- Other goals: balance volume across all patterns, spread across the week.
 
-NOTE: Consider any changes suggested by previous critiques (frequency_and_split, exercise_selection) when evaluating set volume.
-
-1) First, calculate the current weekly set volume for these major movement patterns:
-   - Upper: Horizontal Push (Chest/pressing)
-   - Upper: Horizontal Pull (Rows/rear back)
-   - Upper: Vertical Push (Overhead/shoulders) 
-   - Upper: Vertical Pull (Pull-ups/lats)
-   - Lower: Anterior Chain (Quads)
-   - Lower: Posterior Chain (Glutes/Hams)
-
-2) Then, evaluate if the volume needs to be changed. Use the specific volume guidelines provided in the reference data section below.
-
-3) IMPORTANT: Make CONCRETE ADJUSTMENTS to the program while ensuring proper volume distribution throughout the week:
-   - If volume is too high: Either reduce the number of sets for specific exercises OR completely remove certain exercises. Specify exactly which exercises to modify and from which days
-   - If volume is too low: Either increase the number of sets for existing exercises OR add new exercises. Specify exactly which exercises to modify or add, with specific set/rep recommendations
-   - If movement pattern balance is off: Identify which patterns are overemphasized or underemphasized, then suggest specific exercises to add, remove, or modify numbers of sets to create proper balance. Specify exactly which adjustments to make on which training days
-        - FOR POWERLIFTING or Strength focused goal: Ensure the main lifts are trained with sufficient volume and frequency, and that accessory work complements the main lifts without overloading them
-        - FOR other goals: ensure the volume is balanced across all muscle groups and movement patterns are are spread evenly throughout the week
-   - Ensure volume for each movement pattern is distributed appropriately across multiple training days rather than concentrated on a single day
-   - IMPORTANT: 
-        - When suggesting a range of sets (e.g., 10-12 sets per week), ALWAYS start at the lower end of the range, especially for a beginner.
-        - The number of sets of an exercise should be between 2-5 sets
-        - Compound exercises can be a part of the volume of multiple movement patterns
-
-Do not just analyze - actually modify the program to create optimal training volume with proper distribution throughout the week.
-If the volume distribution is already optimal, return "None".
+If volume is already balanced, return "None".
 '''
 
 TASK_REP_RANGES = '''
-Your colleague has written the following training program:
+Program:
+{}
+User input:
 {}
 
-The individual has provided these details:
-{}
+Focus ONLY on REP RANGES. Do not comment on frequency, split, exercise selection, or RPE.
 
-Focus ONLY on the REP RANGES. Do NOT comment on frequency, split structure, exercise selection, or RPE.
+Goal-specific rep ranges:
+- Hypertrophy: compounds 5-12; isolation 8-20 (12-20 OK for cables/machines). Do NOT drop hypertrophy compounds to 1-5.
+- Strength/Powerlifting: main lifts 1-6; accessories 4-8; isolation accessories 8-12.
+- General fitness/beginner: compounds 8-15; isolation 10-20.
+- Mixed (strength+hypertrophy): main lifts 4-8; secondary compounds 6-12; isolation 10-15.
 
-Evaluate whether the rep ranges align with the individual's PRIMARY GOAL. Use the goal-specific guidelines below.
-
-GOAL-SPECIFIC REP RANGE GUIDELINES:
-
-For HYPERTROPHY / BODYBUILDING goals:
-- Compound movements (squat, deadlift, press, row): 5-12 reps is the ideal range. Both 6-8 and 8-12 are appropriate.
-- Isolation exercises (curls, flies, raises, extensions): 8-20 reps. Higher reps (12-20) are fine for cables and machines.
-- Do NOT push hypertrophy compounds down to powerlifting-style rep ranges (1-5).
-
-For STRENGTH / POWERLIFTING goals:
-- Main lifts (squat, bench, deadlift and close variants): 1-6 reps. Accessories in 4-8 range.
-- Isolation accessory work: 8-12 reps.
-
-For GENERAL FITNESS / BEGINNER goals:
-- Compounds: 8-15 reps.
-- Isolation: 10-20 reps.
-
-For MIXED (strength + hypertrophy) goals:
-- Main lifts: 4-8 reps.
-- Secondary compounds: 6-12 reps.
-- Isolation: 10-15 reps.
-
-Additional rules:
-- Do not include AMRAP (As Many Reps As Possible).
-- NOTE: Consider any changes suggested by previous critiques (frequency_and_split, exercise_selection, set_volume) when evaluating rep ranges.
-
-IMPORTANT: If changes are needed, provide SPECIFIC, CONCRETE suggestions - specify exact rep ranges for each exercise that needs adjustment.
-If nothing needs improvement, return "None".
+Rules: never use AMRAP. Give exact rep ranges per exercise that needs adjustment.
 '''
 
 TASK_RPE = '''
-Your colleague has written the following training program:
+Program:
+{}
+User input:
 {}
 
-The individual has provided these details:
-{}
-
-Focus ONLY on the RPE (Rating of Perceived Exertion) Targets. Do NOT comment on frequency, split structure, exercise selection, or rep ranges.
-
-Evaluate whether:
-- Evaluate if the user is a powerlifter, bodybuilder, or beginner, and adjust the rep ranges accordingly.
-- The RPE values are appropriate for the individual's experience level
-- NOTE: Consider any changes suggested by ALL previous critiques (frequency_and_split, exercise_selection, set_volume, rep_ranges) when evaluating RPE targets
-- Your RPE recommendations should be compatible with the training frequency, exercise selection, set volume, and rep ranges previously recommended
+Focus ONLY on RPE TARGETS. Do not comment on frequency, split, exercise selection, or rep ranges.
 
 Guidelines:
-- Isolation exercises should have a higher Target RPE 8–10
-- Compound movements should have a slightly lower Target RPE
-- Always provide the RPE in a range (e.g., 8-9, 9-10)
-- Exercises that require lower stability (like machine exercises, or something like cable flies) could use a high RPE (8-10)
+- Isolation exercises: higher RPE, 8-10.
+- Compound movements: slightly lower RPE.
+- Low-stability exercises (machines, cable flies): high RPE OK (8-10).
+- Always express RPE as a RANGE (e.g. 8-9, 9-10), never a single number.
+- Match RPE to the user's experience level (powerlifter, bodybuilder, beginner).
 
-IMPORTANT: If changes are needed, provide SPECIFIC, CONCRETE suggestions - specify exact RPE targets for each exercise that needs adjustment.
-If nothing needs improvement, return "None".
+Give exact RPE ranges per exercise that needs adjustment.
 '''
 
 TASK_PROGRESSION = '''
@@ -275,9 +223,11 @@ CRITIC_PROMPT_SETTINGS['week1'] = CriticPromptSettings(
         'role': 'system',
         'content': (
             'You are an experienced strength training coach with deep expertise in exercise science and program design.'
-            'Your job is to critically evaluate the training program provided above, for the task provided' 
+            'Your job is to critically evaluate the training program provided above, for the task provided'
             'Provide clear, actionable, feedback to help improve the program.'
             'If the program meets all criteria, simply return "None".'
+            + COMMON_CRITIC_PRINCIPLES
+            + COMMON_RESPONSE_CONSTRAINTS
         ),
     },
     tasks={
@@ -299,6 +249,8 @@ CRITIC_PROMPT_SETTINGS['progression'] = CriticPromptSettings(
             'Provide specific, actionable feedback on weight selection, rep ranges, RPE targets, and progression rates. '
             'Make precise recommendations for adjustments to optimize the program for continued progress. '
             'If the program meets all criteria for optimal progression, simply return "None".'
+            + COMMON_CRITIC_PRINCIPLES
+            + COMMON_RESPONSE_CONSTRAINTS
         ),
     },
     tasks={

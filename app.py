@@ -128,6 +128,8 @@ DEFAULT_CONFIG = {
     'model': DEFAULT_MODEL,
     'critic_model': DEFAULT_CRITIC_MODEL,
     'max_tokens': DEFAULT_MAX_TOKENS,
+    'critic_max_tokens': 1500,                # Critic feedback is short; cap keeps outputs terse
+    'progression_writer_max_tokens': 2000,    # Progression drafts are a few lines per exercise
     'writer_temperature': DEFAULT_WRITER_TEMPERATURE,
     'writer_top_p': DEFAULT_WRITER_TOP_P,
     'writer_prompt_settings': 'v1',
@@ -165,7 +167,7 @@ def get_program_generator(config: dict | None = None) -> "ProgramGenerator":
     )
     llm_critic = setup_llm(
         model=config.get('critic_model', config['model']),
-        max_tokens=config['max_tokens'],
+        max_tokens=config.get('critic_max_tokens', config['max_tokens']),
         respond_as_json=False,
     )
 
@@ -206,9 +208,15 @@ def get_progression_generator(config: dict, writer_type: str = "progression") ->
     critic_setting_key = 'week1' if writer_type == 'new_block' else 'progression'
     critic_prompt_settings = CRITIC_PROMPT_SETTINGS[critic_setting_key]
 
+    # Progression writer emits a few lines per exercise; full 8k cap is overkill.
+    writer_max = (
+        config.get('progression_writer_max_tokens', config['max_tokens'])
+        if writer_type == 'progression'
+        else config['max_tokens']
+    )
     llm_writer = setup_llm(
         model=config['model'],
-        max_tokens=config['max_tokens'],
+        max_tokens=writer_max,
         respond_as_json=True,
         temperature=config['writer_temperature'],
         top_p=config['writer_top_p'],
@@ -216,7 +224,7 @@ def get_progression_generator(config: dict, writer_type: str = "progression") ->
     )
     llm_critic = setup_llm(
         model=config.get('critic_model', config['model']),
-        max_tokens=config['max_tokens'],
+        max_tokens=config.get('critic_max_tokens', config['max_tokens']),
         respond_as_json=False,
     )
     llm_analyst = setup_llm(

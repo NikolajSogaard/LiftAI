@@ -423,6 +423,7 @@ class Writer:
         return ["Set 1:(Performance data unavailable)"]
 
     def __call__(self, program: dict[str, str | None]) -> dict[str, str | None]:
+        revised = False
         if self.writer_type == "deload":
             logger.info("Deload writer")
             draft = self.write_deload(program)
@@ -432,15 +433,21 @@ class Writer:
         elif self.writer_type == "progression" and 'feedback' in program:
             logger.info("Progression writer (Week 2+)")
             draft = self.revise(program, override_type="progression")
+            revised = True
         elif program.get('draft') is None:
             logger.info("Initial program creation")
             draft = self.write(program)
         elif 'feedback' in program:
             logger.info("Revising based on feedback")
             draft = self.revise(program, override_type="revision")
+            revised = True
         else:
             logger.info("Fallback: initial write")
             draft = self.write(program)
 
         program['draft'] = draft
+        if revised:
+            # Signal to the Editor that this feedback has already been applied,
+            # so it can skip its own redundant revise pass.
+            program['feedback_applied'] = True
         return program

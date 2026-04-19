@@ -140,7 +140,7 @@ class Critic:
                 payload["detail"] = True
             self.on_status(payload)
 
-    def run_single_critique(self, task_type: str, program: dict) -> tuple[str, str | None]:
+    def run_single_critique(self, task_type: str, program: dict, shared_context: str = "") -> tuple[str, str | None]:
         """Run a single critique task and return (task_type, feedback_or_None).
 
         Parameters
@@ -180,17 +180,11 @@ class Critic:
                 for muscle, ranges in muscles.items():
                     ref_context += f"- {muscle.capitalize()}: {ranges.get('min', '?')}-{ranges.get('max', '?')} sets per week\n"
         
-        # Retrieve context if task needs it — skip for week 2+ progression
+        # Use shared retrieval context (one upfront retrieval per critique cycle).
+        # Week 2+ progression skips RAG entirely — previous program + feedback is enough.
         context = ""
-        if task_config.needs_retrieval and not self.is_week2plus:
-            retrieval_query = task_config.retrieval_query
-            if "{user_input}" in retrieval_query:
-                retrieval_query = retrieval_query.format(user_input=program.get('user-input', ''))
-            try:
-                result, _ = self.retrieval_fn(retrieval_query, task_config.specialized_instructions)
-                context = f"\nRelevant context from training literature:\n{result}\n"
-            except Exception:
-                logger.warning("RAG retrieval failed for task %s, continuing without context", task_type, exc_info=True)
+        if task_config.needs_retrieval and not self.is_week2plus and shared_context:
+            context = f"\nRelevant context from training literature:\n{shared_context}\n"
 
         if ref_context:
             context = ref_context + "\n" + context
@@ -271,11 +265,33 @@ class Critic:
         """
         logger.info("========== CRITIQUE PROCESS STARTED ==========")
 
+        # One shared RAG retrieval for all tasks that need context. Avoids
+        # 4× redundant retrieve_and_generate calls per critique cycle.
+        shared_context = ""
+        needs_shared = (not self.is_week2plus) and any(
+            self.task_configs.get(t) and self.task_configs[t].needs_retrieval
+            for t in self.task_types
+        )
+        if needs_shared:
+            user_input = program.get('user-input', '')
+            shared_query = (
+                f"Strength training program design guidelines for: {user_input}. "
+                "Cover training frequency and splits, exercise selection, "
+                "weekly set volume, rep ranges, and RPE targets."
+            )
+            try:
+                self._emit("Retrieving shared training-literature context...")
+                shared_context, _ = self.retrieval_fn(
+                    shared_query, "", use_hyde=False, use_crag=False
+                )
+            except Exception:
+                logger.warning("Shared RAG retrieval failed, continuing without context", exc_info=True)
+
         # Run all tasks concurrently — tasks are independent (dependency context is
         # informational only and not required for correctness).
         with ThreadPoolExecutor(max_workers=len(self.task_types)) as executor:
             futures = {
-                executor.submit(self.run_single_critique, task_type, program): task_type
+                executor.submit(self.run_single_critique, task_type, program, shared_context): task_type
                 for task_type in self.task_types
             }
             raw_results: dict[str, str | None] = {}
@@ -310,5 +326,7 @@ class Critic:
         return {'feedback': combined}
 
     def __call__(self, article: dict[str, str | None]) -> dict[str, str | None]:
+        # New critique = any feedback_applied flag from the previous revise is stale.
+        article.pop('feedback_applied', None)
         article.update(self.critique(article))
         return article
