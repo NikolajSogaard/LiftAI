@@ -14,7 +14,7 @@ IMPORTANT:
 COMMON_RESPONSE_CONSTRAINTS = '''
 RESPONSE CONSTRAINTS (apply to every critique):
 - Keep responses under ~200 words. Bullet points only. No preamble, no meta-commentary.
-- Provide SPECIFIC, CONCRETE suggestions: exact exercise, exact set count, exact rep range, exact RPE, exact day.
+- Provide SPECIFIC, CONCRETE suggestions: exact exercise, exact set count, exact rep range, exact RIR, exact day.
 - If nothing meaningful needs improvement, return exactly "None".
 '''
 
@@ -33,12 +33,12 @@ OPERATING PRINCIPLES (apply to every critique):
    - If three changes matter and seven are possible, return three.
 
 3. STAY IN YOUR SCOPE
-   - Every task has an explicit focus (frequency, exercises, volume, reps, or RPE). Do not drift outside it.
+   - Every task has an explicit focus (frequency, exercises, volume, reps, or RIR). Do not drift outside it.
    - Do not re-litigate decisions owned by a sibling task. Trust the pipeline.
    - If a cross-cutting concern appears, note it briefly but do not act on it.
 
 4. CONCRETE, VERIFIABLE OUTPUT
-   - Every suggestion must be specific enough for the Writer to apply without interpretation: exact exercise, exact set count, exact rep range, exact RPE, exact day.
+   - Every suggestion must be specific enough for the Writer to apply without interpretation: exact exercise, exact set count, exact rep range, exact RIR, exact day.
    - Vague directives ("increase volume a bit", "make it harder") are not acceptable output.
    - If no concrete change is warranted, return "None".
 '''
@@ -75,7 +75,7 @@ Program:
 User input:
 {}
 
-Focus ONLY on TRAINING FREQUENCY and SPLIT SELECTION. Do not comment on exercise selection, rep ranges, or RPE.
+Focus ONLY on TRAINING FREQUENCY and SPLIT SELECTION. Do not comment on exercise selection, rep ranges, or RIR.
 
 Evaluate:
 - Sufficient frequency for each major muscle group
@@ -97,7 +97,7 @@ Program:
 User input:
 {}
 
-Focus ONLY on EXERCISE SELECTION. Do not comment on frequency, split, rep ranges, or RPE.
+Focus ONLY on EXERCISE SELECTION. Do not comment on frequency, split, rep ranges, or RIR.
 
 Evaluate:
 - Exercises fit the user's goal, experience, and preferences
@@ -118,7 +118,7 @@ Program:
 User input:
 {}
 
-Focus ONLY on WEEKLY SET VOLUME per movement pattern. Do not comment on frequency, exercise specifics, rep ranges, or RPE.
+Focus ONLY on WEEKLY SET VOLUME per movement pattern. Do not comment on frequency, exercise specifics, rep ranges, or RIR.
 
 Steps:
 1) Tally current weekly sets for: Upper Horizontal Push (chest), Upper Horizontal Pull (rows), Upper Vertical Push (overhead), Upper Vertical Pull (pull-ups/lats), Lower Anterior Chain (quads), Lower Posterior Chain (glutes/hams). Compounds may count for multiple patterns.
@@ -136,7 +136,7 @@ Program:
 User input:
 {}
 
-Focus ONLY on REP RANGES. Do not comment on frequency, split, exercise selection, or RPE.
+Focus ONLY on REP RANGES. Do not comment on frequency, split, exercise selection, or RIR.
 
 Goal-specific rep ranges:
 - Hypertrophy: compounds 5-12; isolation 8-20 (12-20 OK for cables/machines). Do NOT drop hypertrophy compounds to 1-5.
@@ -147,22 +147,22 @@ Goal-specific rep ranges:
 Rules: never use AMRAP. Give exact rep ranges per exercise that needs adjustment.
 '''
 
-TASK_RPE = '''
+TASK_RIR = '''
 Program:
 {}
 User input:
 {}
 
-Focus ONLY on RPE TARGETS. Do not comment on frequency, split, exercise selection, or rep ranges.
+Focus ONLY on RIR TARGETS (Reps In Reserve: reps left in the tank at the end of a set; 0 = failure, higher = easier). Do not comment on frequency, split, exercise selection, or rep ranges.
 
 Guidelines:
-- Isolation exercises: higher RPE, 8-10.
-- Compound movements: slightly lower RPE.
-- Low-stability exercises (machines, cable flies): high RPE OK (8-10).
-- Always express RPE as a RANGE (e.g. 8-9, 9-10), never a single number.
-- Match RPE to the user's experience level (powerlifter, bodybuilder, beginner).
+- Isolation exercises: lower RIR (closer to failure), 0-2.
+- Compound movements: slightly higher RIR (more reserve).
+- Low-stability exercises (machines, cable flies): low RIR OK (0-2).
+- Always express RIR as a RANGE (e.g. 1-2, 0-1), never a single number.
+- Match RIR to the user's experience level (powerlifter, bodybuilder, beginner).
 
-Give exact RPE ranges per exercise that needs adjustment.
+Give exact RIR ranges per exercise that needs adjustment.
 '''
 
 TASK_PROGRESSION = '''
@@ -187,17 +187,17 @@ Evaluate whether the progression recommendations appropriately adjust for progre
 
 CRITERIA FOR REP VS WEIGHT ADJUSTMENTS:
 - RECOMMEND WEIGHT INCREASE WHEN:
-  * RPE is consistently below target range (e.g., RPE 5-6 when target is 7-8)
-  * User is in middle-to-upper end of the rep range AND RPE is below target
+  * RIR is consistently above target range (e.g., RIR 4-5 when target is 2-3) — too easy
+  * User is in middle-to-upper end of the rep range AND RIR is above target
   * Exercise is a compound movement focused on strength development
 
 - RECOMMEND WEIGHT DECREASE WHEN:
-  * RPE is consistently above target range (e.g., RPE 9-10 when target is 7-8)
-  * User is below target reps, and RPE is very high or over target range
+  * RIR is consistently below target range (e.g., RIR 0-1 when target is 2-3) — too hard
+  * User is below target reps, and RIR is very low or below target range
 
 - RECOMMEND REP INCREASE WHEN:
   * User is at the LOWER END of the rep range (e.g., 6 reps when range is 6-10)
-  * RPE is within target range but reps have room to increase within range
+  * RIR is within target range but reps have room to increase within range
   * Exercise is isolation or hypertrophy-focused
   * Adding 1-2 reps would still keep user within the prescribed rep range
 
@@ -210,7 +210,7 @@ Provide concise, concrete feedback with a single adjustment per set (either rep 
 If the progression strategy is already optimal, simply return "None" with no further text.
 '''
 #- RECOMMEND NO CHANGE WHEN:
-#  * RPE is already at upper end of target range (8-9)
+#  * RIR is already at lower end of target range (1-2)
 #  * User failed to complete all prescribed reps with good form
 #  * Performance was inconsistent between sets
 
@@ -235,7 +235,7 @@ CRITIC_PROMPT_SETTINGS['week1'] = CriticPromptSettings(
         'exercise_selection': TASK_EXERCISE_SELECTION,
         'set_volume': TASK_SET_VOLUME,
         'rep_ranges': TASK_REP_RANGES,
-        'rpe': TASK_RPE,
+        'rir': TASK_RIR,
     },
 )
 
@@ -246,7 +246,7 @@ CRITIC_PROMPT_SETTINGS['progression'] = CriticPromptSettings(
         'content': (
             'You are an experienced strength and conditioning coach with deep expertise in exercise science, program design, and progressive overload principles. '
             'Your task is to analyze the training program and previous week\'s performance data to ensure effective progression and proper autoregulation. '
-            'Provide specific, actionable feedback on weight selection, rep ranges, RPE targets, and progression rates. '
+            'Provide specific, actionable feedback on weight selection, rep ranges, RIR targets, and progression rates. '
             'Make precise recommendations for adjustments to optimize the program for continued progress. '
             'If the program meets all criteria for optimal progression, simply return "None".'
             + COMMON_CRITIC_PRINCIPLES
@@ -258,7 +258,7 @@ CRITIC_PROMPT_SETTINGS['progression'] = CriticPromptSettings(
     },
 )
 
-for setting_key in ['frequency_and_split', 'exercise_selection', 'set_volume', 'rep_ranges', 'rpe']:
+for setting_key in ['frequency_and_split', 'exercise_selection', 'set_volume', 'rep_ranges', 'rir']:
     if setting_key in CRITIC_PROMPT_SETTINGS:
         task_var_name = f"TASK_{setting_key.upper()}"
         task_template = locals().get(task_var_name, globals().get(task_var_name))
@@ -267,6 +267,6 @@ for setting_key in ['frequency_and_split', 'exercise_selection', 'set_volume', '
             'exercise_selection': TASK_EXERCISE_SELECTION,
             'set_volume': TASK_SET_VOLUME,
             'rep_ranges': TASK_REP_RANGES,
-            'rpe': TASK_RPE,
+            'rir': TASK_RIR,
         }
 

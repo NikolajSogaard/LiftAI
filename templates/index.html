@@ -236,6 +236,29 @@
     .exercise-card + .exercise-card {
       border-top: 1px solid var(--border);
     }
+    /* Inline supersets: visually join A1+A2 cards into one group */
+    .exercise-card.superset-pair-top,
+    .exercise-card.superset-pair-bottom {
+      border-left: 2px solid var(--orange);
+    }
+    .exercise-card.superset-pair-bottom {
+      border-top: 1px dashed rgba(255,107,43,0.35);
+      padding-top: 8px;
+    }
+    .exercise-card.superset-pair-top {
+      padding-bottom: 8px;
+    }
+    .exercise-card.superset-pair-top .card-top,
+    .exercise-card.superset-pair-bottom .card-top {
+      margin-bottom: 4px;
+    }
+    .exercise-card.superset-pair-top .superset-tag {
+      margin-bottom: 2px;
+    }
+    .exercise-card.superset-pair-top .superset-line,
+    .exercise-card.superset-pair-bottom .superset-line {
+      line-height: 1.2;
+    }
 
     /* Card top: name + visual metrics */
     .card-top {
@@ -291,11 +314,11 @@
       background: var(--border-mid);
       flex-shrink: 0;
     }
-    .metric-rpe-visual { position: relative; cursor: default; }
-    .metric-rpe-visual .metric-val { color: var(--orange); }
+    .metric-rir-visual { position: relative; cursor: default; }
+    .metric-rir-visual .metric-val { color: var(--orange); }
 
-    /* RPE tooltip on the visual block */
-    .rpe-tooltip {
+    /* RIR tooltip on the visual block */
+    .rir-tooltip {
       display: none;
       position: absolute;
       right: 0; top: calc(100% + 6px);
@@ -313,8 +336,8 @@
       min-width: 180px;
       text-align: left;
     }
-    .rpe-tooltip strong { color: var(--text); display: block; margin-bottom: 4px; }
-    .metric-rpe-visual:hover .rpe-tooltip { display: block; }
+    .rir-tooltip strong { color: var(--text); display: block; margin-bottom: 4px; }
+    .metric-rir-visual:hover .rir-tooltip { display: block; }
 
     /* Rest pill */
     .rest-pill {
@@ -788,7 +811,7 @@
 
               <!-- Hidden machine-readable badges for extractProgramFromDOM() -->
               <span class="badge-sets" style="display:none">{{ exercise.sets|default(3, true) }} × {{ exercise.reps|default('8-12', true) }}</span>
-              <span class="badge-rpe" style="display:none">ⓘ RPE {{ exercise.target_rpe }}</span>
+              <span class="badge-rir" style="display:none">ⓘ RIR {{ exercise.target_rir }}</span>
 
               <!-- Card top: name + visual metrics -->
               <div class="card-top">
@@ -801,16 +824,16 @@
                     <div class="metric-lbl">Sets×Reps</div>
                   </div>
                   <div class="metric-divider"></div>
-                  <div class="metric-block metric-rpe-visual">
-                    <div class="metric-val">{{ exercise.target_rpe }}</div>
-                    <div class="metric-lbl">RPE ⓘ</div>
-                    <div class="rpe-tooltip">
-                      <strong>RPE Scale</strong>
-                      6 — Very easy, 4+ reps left<br>
-                      7 — Moderate, 3 reps left<br>
-                      8 — Hard, 2 reps left<br>
-                      9 — Very hard, 1 rep left<br>
-                      10 — Maximum effort
+                  <div class="metric-block metric-rir-visual">
+                    <div class="metric-val">{{ exercise.target_rir }}</div>
+                    <div class="metric-lbl">RIR ⓘ</div>
+                    <div class="rir-tooltip">
+                      <strong>RIR Scale (Reps In Reserve)</strong>
+                      0 — Maximum effort, failure<br>
+                      1 — Very hard, 1 rep left<br>
+                      2 — Hard, 2 reps left<br>
+                      3 — Moderate, 3 reps left<br>
+                      4+ — Very easy, 4+ reps left
                     </div>
                   </div>
                 </div>
@@ -862,10 +885,10 @@
                     </div>
                     <div class="set-field-group">
                       <input type="number" step="0.5" class="set-input"
-                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_actual_rpe"
+                             name="{{ week_program.week }}_{{ day.replace(' ', '') }}_ex{{ exercise_index }}_set{{ i }}_actual_rir"
                              placeholder="—"
                              {% if week_program.week != current_week %}disabled{% endif %}>
-                      <span class="set-field-label">RPE</span>
+                      <span class="set-field-label">RIR</span>
                     </div>
                   </div>
                 </div>
@@ -1220,14 +1243,38 @@
     function applyExerciseLabels(daySection) {
       var cards = daySection.querySelectorAll('.exercise-card');
       var letterCode = 65; // 'A'
+      var prevPairLetter = null;
 
       cards.forEach(function(card) {
-        var letter = String.fromCharCode(letterCode++);
+        card.classList.remove('superset-pair-top', 'superset-pair-bottom');
         var nameEl = card.querySelector('.exercise-name');
         if (!nameEl) return;
 
         var raw = (nameEl.dataset.rawName || nameEl.textContent).trim();
         nameEl.dataset.rawName = raw;
+
+        // Inline-pair pattern: "Exercise Name (Superset A1)" / "(Superset A2)"
+        var pairMatch = raw.match(/^(.*?)\s*\(\s*superset\s+([A-Z])\s*(\d)\s*\)\s*$/i);
+        if (pairMatch) {
+          var baseName = pairMatch[1].trim();
+          var pairIdx = pairMatch[3];
+          var pairLetter;
+          if (pairIdx === '1') {
+            pairLetter = String.fromCharCode(letterCode++);
+            prevPairLetter = pairLetter;
+            card.classList.add('superset-pair-top');
+          } else {
+            pairLetter = prevPairLetter || String.fromCharCode(letterCode++);
+            card.classList.add('superset-pair-bottom');
+          }
+          nameEl.innerHTML =
+            (pairIdx === '1' ? '<span class="superset-tag">Superset</span>' : '') +
+            '<div class="superset-line"><span class="superset-label">' + pairLetter + pairIdx + '</span><span class="superset-name">' + baseName + '</span></div>';
+          return;
+        }
+        prevPairLetter = null;
+
+        var letter = String.fromCharCode(letterCode++);
         var lower = raw.toLowerCase();
         var isSuperset = lower.startsWith('superset:') || lower.startsWith('superset -');
 
@@ -1253,6 +1300,8 @@
     // ── Superset: duplicate set inputs for A2 ────────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('.exercise-card').forEach(function(card) {
+        // Inline-pair supersets already have their own set inputs on each card
+        if (card.classList.contains('superset-pair-top') || card.classList.contains('superset-pair-bottom')) return;
         var nameEl = card.querySelector('.exercise-name');
         if (!nameEl || !nameEl.querySelector('.superset-tag')) return;
 
@@ -1361,18 +1410,18 @@
         daySection.querySelectorAll('.exercise-card').forEach(function(card) {
           var nameEl  = card.querySelector('.exercise-name');
           var badgeEl = card.querySelector('.badge-sets');
-          var rpeEl   = card.querySelector('.badge-rpe');
+          var rirEl   = card.querySelector('.badge-rir');
           var cuesEl  = card.querySelector('.ai-note-content');
           var restEl  = card.querySelector('.rest-pill');
           var name     = nameEl   ? (nameEl.dataset.rawName || nameEl.textContent).trim()                 : '';
           var setsReps = badgeEl  ? badgeEl.textContent.trim()                                            : '3 × 8-12';
-          var rpeText  = rpeEl    ? rpeEl.textContent.replace('ⓘ','').replace('RPE','').replace(/\n.*$/s,'').trim() : '8';
+          var rirText  = rirEl    ? rirEl.textContent.replace('ⓘ','').replace('RIR','').replace(/\n.*$/s,'').trim() : '2';
           var cues     = cuesEl   ? cuesEl.textContent.trim()                                             : '';
           var rest     = restEl   ? restEl.textContent.replace('Rest:', '').trim()                        : '90 seconds';
           var parts = setsReps.split('×');
           var sets  = parseInt((parts[0] || '3').trim()) || 3;
           var reps  = (parts[1] || '8-12').trim();
-          prog[dayName].push({ name: name, sets: sets, reps: reps, target_rpe: rpeText, cues: cues, rest: rest });
+          prog[dayName].push({ name: name, sets: sets, reps: reps, target_rir: rirText, cues: cues, rest: rest });
         });
       });
       return prog;
@@ -1391,7 +1440,7 @@
           var ex = exList[i];
           var nameEl  = card.querySelector('.exercise-name');
           var badgeEl = card.querySelector('.badge-sets');
-          var rpeEl   = card.querySelector('.badge-rpe');
+          var rirEl   = card.querySelector('.badge-rir');
           var cuesEl  = card.querySelector('.ai-note-content');
           var restEl  = card.querySelector('.rest-pill');
           if (nameEl && ex.name) { nameEl.dataset.rawName = ex.name; nameEl.textContent = ex.name; }
@@ -1399,11 +1448,11 @@
           // Also update visible metric blocks
           var visSetEl = card.querySelector('.metric-sets .metric-val');
           if (visSetEl) visSetEl.textContent = (ex.sets || 3) + '×' + (ex.reps || '8-12');
-          var visRpeEl = card.querySelector('.metric-rpe-visual .metric-val');
-          if (visRpeEl) visRpeEl.textContent = ex.target_rpe || '8';
-          if (rpeEl) {
-            rpeEl.childNodes.forEach(function(n) {
-              if (n.nodeType === 3) n.textContent = ' RPE ' + (ex.target_rpe || '8');
+          var visRirEl = card.querySelector('.metric-rir-visual .metric-val');
+          if (visRirEl) visRirEl.textContent = ex.target_rir || '2';
+          if (rirEl) {
+            rirEl.childNodes.forEach(function(n) {
+              if (n.nodeType === 3) n.textContent = ' RIR ' + (ex.target_rir || '2');
             });
           }
           if (cuesEl) cuesEl.textContent = ex.cues || cuesEl.textContent;

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 _SYSTEM_PROMPT = """You are LiftAI Coach, an expert strength training assistant embedded in the LiftAI program viewer.
 
 The user has a generated training program in front of them. You help them:
-1. Live-edit the program (change exercises, sets, reps, RPE, cues) using tools
+1. Live-edit the program (change exercises, sets, reps, RIR, cues) using tools
 2. Answer training questions about why certain choices were made
 3. Explain the structure of the program and the science behind it
 4. Suggest improvements and apply them immediately if the user agrees
@@ -51,9 +51,9 @@ _FUNCTION_DECLARATIONS = [
                     "type": "STRING",
                     "description": "New rep range, e.g. '8-12' or '5-8' (optional)"
                 },
-                "target_rpe": {
+                "target_rir": {
                     "type": "STRING",
-                    "description": "New RPE target, e.g. '8-9' or '7-8' (optional)"
+                    "description": "New RIR target (Reps In Reserve), e.g. '1-2' or '2-3' (optional)"
                 },
                 "cues": {
                     "type": "STRING",
@@ -80,11 +80,11 @@ _FUNCTION_DECLARATIONS = [
                 "name": {"type": "STRING", "description": "Exercise name"},
                 "sets": {"type": "INTEGER", "description": "Number of sets"},
                 "reps": {"type": "STRING", "description": "Rep range, e.g. '8-12'"},
-                "target_rpe": {"type": "STRING", "description": "RPE target, e.g. '8-9'"},
+                "target_rir": {"type": "STRING", "description": "RIR target (Reps In Reserve), e.g. '1-2'"},
                 "cues": {"type": "STRING", "description": "Coaching cues"},
                 "rest": {"type": "STRING", "description": "Rest period, e.g. '90 seconds'"},
             },
-            "required": ["day", "name", "sets", "reps", "target_rpe"],
+            "required": ["day", "name", "sets", "reps", "target_rir"],
         },
     ),
     types.FunctionDeclaration(
@@ -139,7 +139,7 @@ class ProgramChatbot:
             if day not in program or idx >= len(program[day]):
                 return program, f"Error: day '{day}' or exercise index {idx} not found."
             ex = dict(program[day][idx])
-            for field in ("name", "sets", "reps", "target_rpe", "cues", "rest"):
+            for field in ("name", "sets", "reps", "target_rir", "cues", "rest"):
                 if field in args and args[field] is not None:
                     ex[field] = args[field]
             program[day][idx] = ex
@@ -153,7 +153,7 @@ class ProgramChatbot:
                 "name": args.get("name", "New Exercise"),
                 "sets": args.get("sets", 3),
                 "reps": args.get("reps", "8-12"),
-                "target_rpe": args.get("target_rpe", "8-9"),
+                "target_rir": args.get("target_rir", "1-2"),
                 "cues": args.get("cues", ""),
                 "rest": args.get("rest", "90 seconds"),
             }

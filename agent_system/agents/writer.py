@@ -33,7 +33,7 @@ class Writer:
         self.specialized_instructions = {
             "initial": "Focus on creating the best strength training program based on the {user_input}. Consider appropriate training splits and frequency, rep-ranges, exercises that fits the user and the order of these exercises, set volume for each week and intensity.",
             "revision": "Focus on how to improve and correct an existing strength training program based on specific critique feedback. Retrieve evidence-based guidance on fixing the identified issues while preserving the parts that work well.",
-            "progression": "Focus on progressive overload principles and autoregulation strategies. Retrieve guidance on when to increase weight versus reps, how to interpret RPE feedback, and how to adjust training load week over week.",
+            "progression": "Focus on progressive overload principles and autoregulation strategies. Retrieve guidance on when to increase weight versus reps, how to interpret RIR feedback, and how to adjust training load week over week.",
             "deload": "Focus on deload week programming. Retrieve guidance on how to reduce training volume while maintaining movement patterns for recovery.",
             "new_block": "Focus on mesocycle transitions and exercise rotation. Retrieve guidance on how to set up the first week of a new training block with fresh exercises.",
         }
@@ -170,7 +170,7 @@ class Writer:
                 revision_task += (
                     "\n\nFINAL FORMAT REMINDER:\n"
                     "Your response for each exercise MUST contain ONLY:\n"
-                    "- One line per set with performance data: Set X:(Y reps @ Zkg, RPE W)\n"
+                    "- One line per set with performance data: Set X:(Y reps @ Zkg, RIR W)\n"
                     "- One line with just the adjustment: [number]kg ↑ or [number] reps ↓\n"
                     "- NO additional text or explanations whatsoever\n"
                 )

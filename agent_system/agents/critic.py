@@ -26,16 +26,16 @@ class Critic:
             "exercise_selection": "Reviewing exercise selection",
             "set_volume": "Checking weekly set volume",
             "rep_ranges": "Analyzing rep ranges",
-            "rpe": "Assessing RPE targets",
+            "rir": "Assessing RIR targets",
             "progression": "Evaluating progression strategy",
         }
         
         self.specialized_instructions = {
             "frequency_and_split": "Provide concise guidance tailored to the user's training goals. Focus on structuring workout frequency and splits to ensure balanced coverage of muscle groups and key movement patterns. Adapt recommendations based on the user's training experience (beginner or advanced), specialization (e.g., bodybuilding or powerlifting), and overall objectives",
             "exercise_selection": "Provide concise guidance. Retrieve information about exercise selection principles based on specific user goals, experience level, and any physical limitations. Provide the answer as a list of exercises for each goal and muscle group ",            
-            "rpe": "Provide concise guidance, and do not answer outside the scope of the query. Retrieve information about appropriate RPE (Rating of Perceived Exertion) targets for different exercise types and experience levels. Include guidance on when to use absolute RPE values (like 8) versus RPE ranges (like 7-8), and how RPE should differ between compound and isolation exercises.",
+            "rir": "Provide concise guidance, and do not answer outside the scope of the query. Retrieve information about appropriate RIR (Reps In Reserve) targets for different exercise types and experience levels. Include guidance on when to use absolute RIR values (like 2) versus RIR ranges (like 2-3), and how RIR should differ between compound and isolation exercises.",
             "rep_ranges": "Provide concise guidance on rep ranges for different exercises, experience levels and goals. Include information on optimal rep ranges for compound and isolation exercises, as well as how rep ranges can vary based on strength, hypertrophy, or endurance goals.",
-            "progression": "Focus on clear decision-making between weight or rep increases. Provide specific guidance on when to increase weight versus when to increase reps based on RPE, performance data, and position within the target rep range. For RPE below target range, consider weight increases if the user is in the middle/upper end of the rep range, but favor rep increases if the user is at the lower end of their rep range. Always consider the prescribed rep range when deciding between weight or rep increases."
+            "progression": "Focus on clear decision-making between weight or rep increases. Provide specific guidance on when to increase weight versus when to increase reps based on RIR, performance data, and position within the target rep range. For RIR above target range (too easy), consider weight increases if the user is in the middle/upper end of the rep range, but favor rep increases if the user is at the lower end of their rep range. Always consider the prescribed rep range when deciding between weight or rep increases."
         }
         
         # Determine task types based on available tasks
@@ -43,7 +43,7 @@ class Critic:
             self.task_types = ["progression"]
             self.is_week2plus = True
         else:
-            self.task_types = ["frequency_and_split", "exercise_selection", "set_volume", "rep_ranges", "rpe"]
+            self.task_types = ["frequency_and_split", "exercise_selection", "set_volume", "rep_ranges", "rir"]
             self.is_week2plus = False
 
         self._init_task_configs()
@@ -109,19 +109,19 @@ class Critic:
                 specialized_instructions=self.specialized_instructions.get("rep_ranges", ""),
                 dependencies=["frequency_and_split", "exercise_selection", "set_volume"],
             ),
-            "rpe": lambda: CritiqueTask(
-                name="rpe",
-                template=self.tasks.get("rpe", ""),
+            "rir": lambda: CritiqueTask(
+                name="rir",
+                template=self.tasks.get("rir", ""),
                 needs_retrieval=True,
-                retrieval_query="How should RPE targets be assigned in strength training for different types exercises and experience levels?",
-                specialized_instructions=self.specialized_instructions.get("rpe", ""),
+                retrieval_query="How should RIR (Reps In Reserve) targets be assigned in strength training for different types of exercises and experience levels?",
+                specialized_instructions=self.specialized_instructions.get("rir", ""),
                 dependencies=["frequency_and_split", "exercise_selection", "set_volume", "rep_ranges"],
             ),
             "progression": lambda: CritiqueTask(
                 name="progression",
                 template=self.tasks.get("progression", ""),
                 needs_retrieval=True,
-                retrieval_query="What are the best practices for progressive overload, and when should weight be increased/decreasing versus reps? Come with concise guidance on how to choose between increasing/decreasing weight versus increasing reps for progressive overload. When should I prioritize rep increases/decreasing over weight increases if the user is at the lower end of their target rep range? How should RPE feedback influence whether to add weight or reps?",
+                retrieval_query="What are the best practices for progressive overload, and when should weight be increased/decreasing versus reps? Come with concise guidance on how to choose between increasing/decreasing weight versus increasing reps for progressive overload. When should I prioritize rep increases/decreasing over weight increases if the user is at the lower end of their target rep range? How should RIR (Reps In Reserve) feedback influence whether to add weight or reps?",
                 specialized_instructions=self.specialized_instructions.get("progression", ""),
                 dependencies=[],
             )
@@ -277,7 +277,7 @@ class Critic:
             shared_query = (
                 f"Strength training program design guidelines for: {user_input}. "
                 "Cover training frequency and splits, exercise selection, "
-                "weekly set volume, rep ranges, and RPE targets."
+                "weekly set volume, rep ranges, and RIR targets."
             )
             try:
                 self._emit("Retrieving shared training-literature context...")

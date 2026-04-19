@@ -91,12 +91,12 @@ User profile:
 Provide:
 1. Your reasoning — what fatigue signals are you seeing?
 2. Volume reduction plan — which exercises reduce sets and by how much
-3. Intensity guidance — keep weight the same but reduce target RPE by how much
+3. Intensity guidance — keep weight the same but raise target RIR by how much (leave more reps in reserve)
 
 Rules:
 - Reduce total weekly sets by approximately 40-50%
 - Maintain exercise selection — do not swap exercises during a deload
-- Keep weights the same or slightly lower, reduce RPE targets by 1-2
+- Keep weights the same or slightly lower, raise RIR targets by 1-2
 - Prioritize reducing volume on exercises showing the highest fatigue signals
 
 Respond in JSON following this structure:

@@ -36,7 +36,7 @@ The system operates through a Flask-based web interface and a coordinated team o
 The generation process is managed by `agent_system/generator.py`, which orchestrates a LangGraph workflow involving the following specialized agents:
 
 *   **Writer Agent (`agent_system/agents/writer.py`):** Responsible for drafting the initial training program and implementing revisions. It queries the RAG system to ensure scientific accuracy.
-*   **Critic Agent (`agent_system/agents/critic.py`):** Rigorously evaluates the draft against key metrics such as volume, frequency, and RPE (Rate of Perceived Exertion). It provides constructive feedback to the Writer.
+*   **Critic Agent (`agent_system/agents/critic.py`):** Rigorously evaluates the draft against key metrics such as volume, frequency, and RIR (Reps In Reserve). It provides constructive feedback to the Writer.
 *   **Editor Agent (`agent_system/agents/editor.py`):** Ensures the final output adheres to a strict JSON schema for seamless integration with the web frontend.
 
 ### Supporting Infrastructure

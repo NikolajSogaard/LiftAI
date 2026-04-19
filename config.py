@@ -23,7 +23,7 @@ RAG_TOP_K = 8
 LESSON_MAX_CHARS = 300       # truncation applied to distilled lessons
 
 # ── Mesocycle & autoregulation ──────────────────────────────────────────────
-DEFAULT_MESOCYCLE_LENGTH = 4         # weeks per training block
+DEFAULT_MESOCYCLE_LENGTH = 6         # weeks per training block
 STAGNATION_THRESHOLD_WEEKS = 2      # consecutive weeks with no progress → flagged
 FATIGUE_SCORE_DELOAD_TRIGGER = 0.7  # fatigue above this → deload
 STALL_RATIO_REVIEW_TRIGGER = 0.5    # fraction of exercises stalled → mesocycle review

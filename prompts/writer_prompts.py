@@ -50,7 +50,7 @@ Based on feedback from your colleague below:
 
 IMPORTANT: 
 - Address all the feedback provided in the critique and adjust the program based on those suggestions.
-- Make sure to adjust the program according to the critique from: frequency and split, exercise selection, set volume, rep ranges, and RPE (Rating of Perceived Exertion).
+- Make sure to adjust the program according to the critique from: frequency and split, exercise selection, set volume, rep ranges, and RIR (Reps In Reserve).
 - You MUST always directly implement all the suggested changes in the program itself from the critique, not just in the suggestion field.
 - Maintain the same number of training days unless the feedback explicitly suggests changing it.
 Follow this JSON structure as a guide for your response:
@@ -71,26 +71,26 @@ Create the next week's training program based on:
 IMPORTANT:
 - ONLY modify the "AI Progression" field - keep all exercises, sets, rep ranges and rest periods identical
 - YOUR RESPONSE MUST FOLLOW EXACTLY THIS FORMAT FOR LOAD ADJUSTMENTS WITH NO VARIATION:
-  Set 1:(8 reps @ 80kg, RPE 7)
-  Set 2:(8 reps @ 80kg, RPE 8)
-  Set 3:(7 reps @ 80kg, RPE 9)
+  Set 1:(8 reps @ 80kg, RIR 3)
+  Set 2:(8 reps @ 80kg, RIR 2)
+  Set 3:(7 reps @ 80kg, RIR 1)
         75kg ↓
 
 - YOUR RESPONSE MUST FOLLOW EXACTLY THIS FORMAT FOR REP ADJUSTMENTS WITH NO VARIATION:
-  Set 1:(8 reps @ 80kg, RPE 7)
-  Set 2:(8 reps @ 80kg, RPE 8)
-  Set 3:(7 reps @ 80kg, RPE 9)
+  Set 1:(8 reps @ 80kg, RIR 3)
+  Set 2:(8 reps @ 80kg, RIR 2)
+  Set 3:(7 reps @ 80kg, RIR 1)
         10 reps ↑
-  
-- First line must be "Set 1:" followed by performance data in parentheses "(reps @ weight, RPE score)"
+
+- First line must be "Set 1:" followed by performance data in parentheses "(reps @ weight, RIR score)"
 - Include ONE line per set showing the actual performance data from last week
 - Then provide ONE line with ONLY the adjustment with arrow symbol - nothing else
 - Use "↑" for increases and "↓" for decreases
-- For weight changes: "85kg ↑" or "75kg ↓" 
+- For weight changes: "85kg ↑" or "75kg ↓"
 - For rep changes: "10 reps ↑" or "8 reps ↓"
 - DO NOT include any other explanatory text whatsoever
-- DO NOT include phrases like "Based on your performance" or "Aim for" or "Target RPE"
-- DO NOT include any recommendations about RPE targets
+- DO NOT include phrases like "Based on your performance" or "Aim for" or "Target RIR"
+- DO NOT include any recommendations about RIR targets
 - If no performance data is available, leave the suggestion field empty
 
 IMPORTANT: Your AI Progression field must contain ONLY the set data and adjustment line as shown above.
@@ -108,7 +108,7 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "name": "Exercise name",
         "sets": 3,
         "reps": "8-12",
-        "target_rpe": "7-8",
+        "target_rir": "2-3",
         "rest": "60-90 seconds",
         "cues": "Specific coaching note on form, focus, or purpose for this exercise"
       },
@@ -116,7 +116,7 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "name": "Exercise name",
         "sets": 3,
         "reps": "8-12",
-        "target_rpe": "7-8",
+        "target_rir": "2-3",
         "rest": "2 minutes",
         "cues": "Specific coaching note on form, focus, or purpose for this exercise"
       }
@@ -126,7 +126,7 @@ PROGRAM_STRUCTURE_WEEK1 = '''
         "name": "Exercise name",
         "sets": 4,
         "reps": "5-8",
-        "target_rpe": "8-9",
+        "target_rir": "1-2",
         "rest": "2-3 minutes",
         "cues": "Specific coaching note on form, focus points, or exercise purpose"
       }
@@ -162,7 +162,7 @@ PROGRESSION_ROLE = {
     'content': 'You are an AI system specialized adjustion strength training programs based on previous weeks performance' 
                 'Your task is to analyze previous performance data and provide specific progression recommendations. '
                 'ONLY provide specific weight and effort suggestions in the "AI Progression" field. KEEP the rest of the program identical to the previous week.'
-                'Analyze the actual performance (weights, reps achieved, RPE reported) to make data-driven decisions. '
+                'Analyze the actual performance (weights, reps achieved, RIR reported) to make data-driven decisions. '
                 'Be specific with weight in kg or rep recommendations and explain your reasoning briefly.'
 }
 
@@ -202,7 +202,7 @@ TASK_DELOAD_WRITER = '''Generate a deload week program based on:
 IMPORTANT:
 - Keep all exercises identical to the previous week
 - Reduce sets per the analyst's volume reduction plan (approximately 40-50% fewer sets)
-- Maintain weights but lower target RPE by 1-2 points
+- Maintain weights but raise target RIR by 1-2 points (leave more reps in reserve)
 - This is a recovery week — the goal is reduced fatigue, not progression
 - Do NOT add any new exercises or modify exercise order
 
@@ -227,7 +227,7 @@ IMPORTANT:
 - Maintain the same training split structure
 - Set initial weights conservatively — use the last working weights for retained exercises,
   start 10-15% lighter for newly swapped exercises
-- Reset RPE targets to moderate levels (6-8 for compounds, 7-9 for isolation)
+- Reset RIR targets to moderate levels (2-4 for compounds, 1-3 for isolation)
 - Fill in the "cues" field with specific coaching notes for any new exercises
 
 Follow this JSON structure as a guide for your response:
@@ -250,7 +250,7 @@ NEW_BLOCK_ROLE = {
         'You are an AI system specialized in creating the first week of a new training mesocycle. '
         'You implement specific exercise swaps and volume adjustments recommended by an analyst, '
         'while preserving the overall training split structure. '
-        'Set conservative initial loads for new exercises and moderate RPE targets across the board. '
+        'Set conservative initial loads for new exercises and moderate RIR targets across the board. '
         'Provide clear, CONCISE output with no additional commentary.'
     )
 }

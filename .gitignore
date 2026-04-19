@@ -10,6 +10,7 @@ agent_system/setup_api.py
 CLAUDE.md
 .claude/settings.local.json
 requirements_full.txt
+.superpowers
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

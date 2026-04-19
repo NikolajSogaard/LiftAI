@@ -111,7 +111,7 @@ def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
                 exercise_feedback['sets_data'].append({
                     'weight': form.get(f"{prefix}_ex{i}_set{j}_weight"),
                     'reps': form.get(f"{prefix}_ex{i}_set{j}_reps"),
-                    'actual_rpe': form.get(f"{prefix}_ex{i}_set{j}_actual_rpe")
+                    'actual_rir': form.get(f"{prefix}_ex{i}_set{j}_actual_rir")
                 })
                 # Superset A2 fields (only present when exercise is a superset)
                 a2_weight = form.get(f"{prefix}_ex{i}_a2set{j}_weight")
@@ -119,7 +119,7 @@ def _parse_feedback_form(program: dict, form, key_prefix: str = "") -> dict:
                     exercise_feedback.setdefault('a2_sets_data', []).append({
                         'weight': a2_weight,
                         'reps': form.get(f"{prefix}_ex{i}_a2set{j}_reps"),
-                        'actual_rpe': form.get(f"{prefix}_ex{i}_a2set{j}_actual_rpe")
+                        'actual_rir': form.get(f"{prefix}_ex{i}_a2set{j}_actual_rir")
                     })
             feedback_data[day].append(exercise_feedback)
     return feedback_data
@@ -376,13 +376,13 @@ def parse_program(program_output):
 
         # Nothing found
         return {"Day 1": [{"name": "No program data found", "sets": 0, "reps": "0",
-                           "target_rpe": 0, "rest": "N/A",
+                           "target_rir": 0, "rest": "N/A",
                            "cues": "Please try generating a new program."}]}
 
     except Exception as e:
         logger.exception("Error parsing program")
         return {"Day 1": [{"name": "Error parsing program", "sets": 0, "reps": "0",
-                           "target_rpe": 0, "rest": "N/A", "cues": str(e)}]}
+                           "target_rir": 0, "rest": "N/A", "cues": str(e)}]}
 
 @app.route('/')
 def index():

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def _extract_exercise_history(weeks: list[dict]) -> dict[str, list[dict]]:
     """Group per-set feedback by exercise name across all weeks.
 
-    Returns {exercise_name: [{week, max_weight, max_reps, avg_rpe}, ...]}
+    Returns {exercise_name: [{week, max_weight, max_reps, avg_rir}, ...]}
     """
     history: dict[str, list[dict]] = {}
     for record in weeks:
@@ -31,7 +31,7 @@ def _extract_exercise_history(weeks: list[dict]) -> dict[str, list[dict]]:
                 if not sets:
                     continue
 
-                weights, reps, rpes = [], [], []
+                weights, reps, rirs = [], [], []
                 for s in sets:
                     try:
                         w = float(s.get("weight", 0) or 0)
@@ -41,9 +41,9 @@ def _extract_exercise_history(weeks: list[dict]) -> dict[str, list[dict]]:
                     except (ValueError, TypeError):
                         pass
                     try:
-                        rpe = float(s.get("actual_rpe", 0) or 0)
-                        if rpe > 0:
-                            rpes.append(rpe)
+                        rir = float(s.get("actual_rir", 0) or 0)
+                        if rir > 0:
+                            rirs.append(rir)
                     except (ValueError, TypeError):
                         pass
 
@@ -54,7 +54,7 @@ def _extract_exercise_history(weeks: list[dict]) -> dict[str, list[dict]]:
                     "week": record.get("week", 0),
                     "max_weight": max(weights),
                     "max_reps": max(reps),
-                    "avg_rpe": sum(rpes) / len(rpes) if rpes else 0.0,
+                    "avg_rir": sum(rirs) / len(rirs) if rirs else 0.0,
                 })
     return history
 
@@ -73,13 +73,13 @@ def _compute_stagnation(entries: list[dict]) -> int:
     return stagnation
 
 
-def _compute_rpe_trend(entries: list[dict]) -> str:
-    """Determine RPE direction: 'rising', 'falling', or 'stable'."""
-    rpes = [e["avg_rpe"] for e in entries if e["avg_rpe"] > 0]
-    if len(rpes) < 2:
+def _compute_rir_trend(entries: list[dict]) -> str:
+    """Determine RIR direction: 'rising' (easier), 'falling' (harder = fatigue signal), or 'stable'."""
+    rirs = [e["avg_rir"] for e in entries if e["avg_rir"] > 0]
+    if len(rirs) < 2:
         return "stable"
-    first_half = sum(rpes[: len(rpes) // 2]) / (len(rpes) // 2)
-    second_half = sum(rpes[len(rpes) // 2 :]) / (len(rpes) - len(rpes) // 2)
+    first_half = sum(rirs[: len(rirs) // 2]) / (len(rirs) // 2)
+    second_half = sum(rirs[len(rirs) // 2 :]) / (len(rirs) - len(rirs) // 2)
     diff = second_half - first_half
     if diff > 0.5:
         return "rising"
@@ -100,7 +100,7 @@ def compute_exercise_metrics(weeks: list[dict]) -> dict[str, dict[str, Any]]:
     Returns
     -------
     dict
-        {exercise_name: {stagnation_weeks, rpe_trend, load_progression, flag}}
+        {exercise_name: {stagnation_weeks, rir_trend, load_progression, flag}}
     """
     history = _extract_exercise_history(weeks)
     metrics: dict[str, dict[str, Any]] = {}
@@ -108,7 +108,7 @@ def compute_exercise_metrics(weeks: list[dict]) -> dict[str, dict[str, Any]]:
     for name, entries in history.items():
         entries.sort(key=lambda e: e["week"])
         stagnation = _compute_stagnation(entries)
-        rpe_trend = _compute_rpe_trend(entries)
+        rir_trend = _compute_rir_trend(entries)
         load_start = entries[0]["max_weight"]
         load_end = entries[-1]["max_weight"]
 
@@ -116,7 +116,7 @@ def compute_exercise_metrics(weeks: list[dict]) -> dict[str, dict[str, Any]]:
 
         metrics[name] = {
             "stagnation_weeks": stagnation,
-            "rpe_trend": rpe_trend,
+            "rir_trend": rir_trend,
             "load_progression": load_end - load_start,
             "flag": flag,
         }
@@ -135,64 +135,64 @@ def compute_global_metrics(
     exercise_metrics:
         Output of compute_exercise_metrics().
     weeks:
-        The weekly records (used for per-week average RPE calculation).
+        The weekly records (used for per-week average RIR calculation).
 
     Returns
     -------
     dict
-        {avg_rpe_trend, fatigue_score, stalled_exercise_ratio}
+        {avg_rir_trend, fatigue_score, stalled_exercise_ratio}
     """
-    # Per-week average RPE across all exercises
-    weekly_rpes: list[float] = []
+    # Per-week average RIR across all exercises
+    weekly_rirs: list[float] = []
     for record in weeks:
         feedback = record.get("feedback") or {}
-        all_rpes: list[float] = []
+        all_rirs: list[float] = []
         for day_exercises in feedback.values():
             for ex in day_exercises:
                 for s in ex.get("sets_data", []):
                     try:
-                        rpe = float(s.get("actual_rpe", 0) or 0)
-                        if rpe > 0:
-                            all_rpes.append(rpe)
+                        rir = float(s.get("actual_rir", 0) or 0)
+                        if rir > 0:
+                            all_rirs.append(rir)
                     except (ValueError, TypeError):
                         pass
-        if all_rpes:
-            weekly_rpes.append(sum(all_rpes) / len(all_rpes))
+        if all_rirs:
+            weekly_rirs.append(sum(all_rirs) / len(all_rirs))
 
-    # Average RPE trend
-    rpe_diff = 0.0
-    if len(weekly_rpes) >= 2:
-        first = sum(weekly_rpes[: len(weekly_rpes) // 2]) / (len(weekly_rpes) // 2)
-        second = sum(weekly_rpes[len(weekly_rpes) // 2 :]) / (len(weekly_rpes) - len(weekly_rpes) // 2)
-        rpe_diff = second - first
-        if rpe_diff > 0.5:
-            avg_rpe_trend = "rising"
-        elif rpe_diff < -0.5:
-            avg_rpe_trend = "falling"
+    # Average RIR trend (falling RIR = fatigue signal)
+    rir_diff = 0.0
+    if len(weekly_rirs) >= 2:
+        first = sum(weekly_rirs[: len(weekly_rirs) // 2]) / (len(weekly_rirs) // 2)
+        second = sum(weekly_rirs[len(weekly_rirs) // 2 :]) / (len(weekly_rirs) - len(weekly_rirs) // 2)
+        rir_diff = second - first
+        if rir_diff > 0.5:
+            avg_rir_trend = "rising"
+        elif rir_diff < -0.5:
+            avg_rir_trend = "falling"
         else:
-            avg_rpe_trend = "stable"
+            avg_rir_trend = "stable"
     else:
-        avg_rpe_trend = "stable"
+        avg_rir_trend = "stable"
 
     # Stalled exercise ratio
     total = len(exercise_metrics)
     stalled = sum(1 for m in exercise_metrics.values() if m["flag"] == "stalled")
     stalled_ratio = stalled / total if total > 0 else 0.0
 
-    # RPE rise component (0..1): how much average RPE rose, capped at 2.0 RPE increase
-    rpe_rise = 0.0
-    if len(weekly_rpes) >= 2:
-        rpe_rise = min(max(rpe_diff, 0.0) / 2.0, 1.0)
+    # RIR fall component (0..1): how much average RIR fell, capped at 2.0 RIR drop
+    rir_fall = 0.0
+    if len(weekly_rirs) >= 2:
+        rir_fall = min(max(-rir_diff, 0.0) / 2.0, 1.0)
 
     # Rep decline component: approximate with stalled_ratio
     rep_decline = stalled_ratio
 
     # Fatigue score composite
-    fatigue = (0.4 * rpe_rise) + (0.3 * rep_decline) + (0.3 * stalled_ratio)
+    fatigue = (0.4 * rir_fall) + (0.3 * rep_decline) + (0.3 * stalled_ratio)
     fatigue = min(fatigue, 1.0)
 
     return {
-        "avg_rpe_trend": avg_rpe_trend,
+        "avg_rir_trend": avg_rir_trend,
         "fatigue_score": round(fatigue, 3),
         "stalled_exercise_ratio": round(stalled_ratio, 3),
     }

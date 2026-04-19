@@ -88,7 +88,7 @@ class Editor:
                     "name": ex.get("name", "Unnamed Exercise"),
                     "sets": ex.get("sets", 3),
                     "reps": ex.get("reps", "8-12"),
-                    "target_rpe": ex.get("target_rpe", "7-8"),
+                    "target_rir": ex.get("target_rir", "2-3"),
                     "rest": ex.get("rest", "60-90 seconds"),
                     "cues": ex.get("cues", "Focus on proper form")
                 }
