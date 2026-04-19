@@ -1659,6 +1659,171 @@
         this.style.height = Math.min(this.scrollHeight, 90) + 'px';
       });
     });
+
+  /* ---- Fast set-logging pill interactions ---- */
+  (function () {
+    function midpoint(target, { integer }) {
+      if (!target) return '';
+      const s = String(target).trim();
+      // Range like "8-12" or "2-3"
+      const m = s.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$/);
+      if (m) {
+        const mid = (parseFloat(m[1]) + parseFloat(m[2])) / 2;
+        if (integer) return String(Math.round(mid));
+        return String(Math.round(mid * 2) / 2);   // 0.5 resolution
+      }
+      // Single number like "10" or "2"
+      if (/^\d+(?:\.\d+)?$/.test(s)) return s;
+      return '';
+    }
+
+    function hiddenInputFor(row, field) {
+      const name = `${row.dataset.week}_${row.dataset.day.replace(/ /g,'')}_ex${row.dataset.exerciseIndex}_set${row.dataset.setIndex}_${field}`;
+      return row.querySelector(`input[type=hidden][name="${name}"]`);
+    }
+
+    function updateConfirmEnabled(row) {
+      const btn = row.querySelector('.set-confirm');
+      if (!btn || btn.hasAttribute('disabled') && row.dataset.readonly === '1') return;
+      const kgVal = row.querySelector('.set-pill[data-field="weight"] .pill-value').textContent.trim();
+      const isReadonly = row.dataset.readonly === '1';
+      btn.disabled = isReadonly || !kgVal;
+    }
+
+    function postLogSet(row) {
+      const payload = {
+        week: Number(row.dataset.week),
+        day: row.dataset.day,
+        exercise_index: Number(row.dataset.exerciseIndex),
+        set_index: Number(row.dataset.setIndex),
+        weight: hiddenInputFor(row, 'weight').value,
+        reps: hiddenInputFor(row, 'reps').value,
+        actual_rir: hiddenInputFor(row, 'actual_rir').value,
+      };
+      fetch('/log_set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => { /* fire-and-forget; form POST still works as fallback */ });
+    }
+
+    function commitPill(pill, value) {
+      const valSpan = pill.querySelector('.pill-value');
+      valSpan.textContent = value;
+      const row = pill.closest('.set-row');
+      const field = pill.dataset.field;
+      hiddenInputFor(row, field).value = value;
+      updateConfirmEnabled(row);
+    }
+
+    function openEditor(pill) {
+      if (pill.querySelector('input.pill-input')) return;
+      const row = pill.closest('.set-row');
+      if (row.dataset.readonly === '1') return;
+      const valSpan = pill.querySelector('.pill-value');
+      const current = valSpan.textContent.trim();
+      const field = pill.dataset.field;
+      const step = (field === 'reps') ? '1' : '0.5';
+      valSpan.style.display = 'none';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.inputMode = 'decimal';
+      input.step = step;
+      input.className = 'pill-input';
+      input.value = current;
+      pill.appendChild(input);
+      input.focus();
+      input.select();
+      const finish = () => {
+        const v = input.value.trim();
+        input.remove();
+        valSpan.style.display = '';
+        commitPill(pill, v);
+        // If this pill belonged to a confirmed row, mark row dirty again
+        if (row.classList.contains('done')) {
+          row.classList.remove('done');
+          row.querySelector('.set-confirm').disabled = !hiddenInputFor(row, 'weight').value;
+        }
+      };
+      input.addEventListener('blur', finish, { once: true });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      });
+    }
+
+    function confirmRow(row) {
+      if (row.classList.contains('done')) {
+        // Undo
+        row.classList.remove('done');
+        updateConfirmEnabled(row);
+        return;
+      }
+      // Ensure hidden inputs are populated from current pill values
+      ['weight', 'reps', 'actual_rir'].forEach((f) => {
+        const v = row.querySelector(`.set-pill[data-field="${f}"] .pill-value`).textContent.trim();
+        hiddenInputFor(row, f).value = v;
+      });
+      row.classList.add('done');
+      postLogSet(row);
+      // Pulse the next unconfirmed ✓ in this exercise
+      let next = row.nextElementSibling;
+      while (next && (!next.classList.contains('set-row') || next.classList.contains('done'))) {
+        next = next.nextElementSibling;
+      }
+      if (next) {
+        const nextBtn = next.querySelector('.set-confirm');
+        if (nextBtn && !nextBtn.disabled) {
+          nextBtn.classList.remove('pulse');
+          void nextBtn.offsetWidth;   // restart animation
+          nextBtn.classList.add('pulse');
+          setTimeout(() => nextBtn.classList.remove('pulse'), 3000);
+        }
+      }
+    }
+
+    function initRow(row) {
+      const btn = row.querySelector('.set-confirm');
+      // Template renders ✓ with `disabled` attribute on past/future weeks — mirror to the row.
+      if (btn && btn.hasAttribute('disabled')) {
+        row.dataset.readonly = '1';
+      }
+      // Midpoint prefill for reps/rir (kg handled by server-side prior-week lookup)
+      const repsPill = row.querySelector('.set-pill[data-field="reps"]');
+      const rirPill  = row.querySelector('.set-pill[data-field="actual_rir"]');
+      const repsMid = midpoint(row.dataset.repsTarget, { integer: true });
+      const rirMid  = midpoint(row.dataset.rirTarget,  { integer: false });
+      if (repsMid) commitPill(repsPill, repsMid);
+      if (rirMid)  commitPill(rirPill,  rirMid);
+
+      // Kg hidden input already carries prior_weight from Jinja; sync confirm button state.
+      updateConfirmEnabled(row);
+
+      // Bind handlers
+      row.querySelectorAll('.set-pill').forEach((pill) => {
+        pill.addEventListener('click', (e) => {
+          if (row.dataset.readonly === '1') return;
+          if (e.target.tagName === 'INPUT') return;   // already editing
+          openEditor(pill);
+        });
+      });
+      if (btn) {
+        btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+          confirmRow(row);
+        });
+      }
+    }
+
+    function initAll() {
+      document.querySelectorAll('.set-row').forEach(initRow);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+      initAll();
+    }
+  })();
   </script>
 
   <!-- Review Overlay -->
